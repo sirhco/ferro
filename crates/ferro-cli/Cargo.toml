@@ -1,0 +1,42 @@
+[package]
+name = "ferro-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Ferro CLI: init, serve, migrate, export, import, plugin."
+
+[[bin]]
+name = "ferro"
+path = "src/main.rs"
+
+[dependencies]
+ferro-core.workspace = true
+ferro-storage = { workspace = true, features = ["surreal", "fs-json", "fs-markdown", "postgres"] }
+ferro-auth.workspace = true
+ferro-media = { workspace = true, features = ["local", "s3", "gcs", "images"] }
+ferro-plugin.workspace = true
+ferro-api.workspace = true
+
+tokio = { workspace = true, features = ["full"] }
+axum.workspace = true
+hyper.workspace = true
+tower.workspace = true
+tower-http = { workspace = true, features = ["compression-br", "fs", "set-header"] }
+
+clap.workspace = true
+dialoguer.workspace = true
+indicatif.workspace = true
+console.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+time.workspace = true
+brotli.workspace = true
+url.workspace = true

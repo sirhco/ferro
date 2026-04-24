@@ -1,0 +1,16 @@
+[package]
+name = "ferro-editor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Ferro rich-text editor Leptos components (islands)."
+
+[dependencies]
+ferro-core.workspace = true
+
+leptos.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true

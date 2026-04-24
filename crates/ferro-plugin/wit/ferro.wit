@@ -1,0 +1,74 @@
+// Ferro plugin ABI (draft v0.1).
+// WIT world that plugins implement; host provides the imports.
+//
+// Build plugins with `wit-bindgen rust` (or the corresponding JS/Go toolchain)
+// targeting this world, then package the component with `wasm-tools component new`.
+
+package ferro:cms@0.1.0;
+
+interface types {
+    type content-id = string;
+    type site-id = string;
+    type user-id = string;
+
+    record content {
+        id: content-id,
+        site-id: site-id,
+        type-slug: string,
+        slug: string,
+        locale: string,
+        status: string,
+        data-json: string,
+    }
+
+    record log-entry {
+        level: string,
+        message: string,
+    }
+
+    record http-req {
+        method: string,
+        path: string,
+        headers: list<tuple<string, string>>,
+        body: list<u8>,
+    }
+
+    record http-resp {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: list<u8>,
+    }
+}
+
+// Host → Plugin capabilities (granted per plugin)
+interface host {
+    use types.{content, content-id, http-req, http-resp, log-entry};
+
+    /// Fetch content by id. Returns none if unauthorized or missing.
+    get-content: func(id: content-id) -> option<content>;
+
+    /// Emit a log line (requires `logs` capability).
+    log: func(entry: log-entry);
+
+    /// HTTP fetch (requires `http.fetch:<host>` capability).
+    http-fetch: func(req: http-req) -> result<http-resp, string>;
+}
+
+// Plugin → Host hooks (plugin exports)
+interface hooks {
+    use types.{content, http-req, http-resp};
+
+    /// Called after content is created; may mutate + return new value.
+    on-content-create: func(c: content) -> option<content>;
+
+    /// Called before content publishes. Return Err to block.
+    on-content-publish: func(c: content) -> result<_, string>;
+
+    /// Optional HTTP handler. Must match the serve prefix capability.
+    on-request: func(req: http-req) -> option<http-resp>;
+}
+
+world plugin {
+    import host;
+    export hooks;
+}

@@ -1,0 +1,58 @@
+[package]
+name = "ferro-admin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Ferro admin UI: Leptos SSR + islands + lazy_route + split."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+hydrate = ["leptos/hydrate", "dep:wasm-bindgen"]
+ssr = [
+    "leptos/ssr",
+    "leptos_axum/default",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+    "dep:axum",
+    "dep:tokio",
+]
+
+[dependencies]
+ferro-core.workspace = true
+ferro-editor.workspace = true
+
+leptos.workspace = true
+leptos_meta.workspace = true
+leptos_router.workspace = true
+leptos_axum = { workspace = true, optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
+serde.workspace = true
+serde_json.workspace = true
+
+# SSR-only dependencies are gated via the `ssr` feature.
+axum = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+tracing.workspace = true
+
+[package.metadata.leptos]
+output-name = "ferro_admin"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+style-file = "style/main.scss"
+assets-dir = "public"
+site-addr = "127.0.0.1:3001"
+reload-port = 3002
+browserquery = "defaults"
+env = "DEV"
+bin-features = ["ssr"]
+lib-features = ["hydrate"]
+# Enable cargo leptos's route-level split + brotli compression.
+lib-profile-release = "release-wasm"
+split = true
+lib-cargo-args = ["-Zbuild-std=std,panic_abort", "-Zbuild-std-features=panic_immediate_abort"]
