@@ -1,0 +1,36 @@
+[package]
+name = "ferro-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Ferro storage trait + backends (SurrealDB, Postgres, flat JSON, flat Markdown)."
+
+[features]
+default = ["surreal"]
+surreal = ["dep:surrealdb"]
+postgres = ["dep:sqlx"]
+fs-json = []
+fs-markdown = ["dep:serde_yaml"]
+
+[dependencies]
+ferro-core.workspace = true
+
+async-trait.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = { workspace = true, optional = true }
+time.workspace = true
+tokio = { workspace = true, features = ["fs", "sync"] }
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+surrealdb = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = "3"

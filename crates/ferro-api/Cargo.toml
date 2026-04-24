@@ -1,0 +1,39 @@
+[package]
+name = "ferro-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Ferro HTTP API: Axum + async-graphql + REST + OpenAPI."
+
+[dependencies]
+ferro-core.workspace = true
+ferro-storage.workspace = true
+ferro-auth.workspace = true
+ferro-media.workspace = true
+
+async-trait.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+bytes.workspace = true
+futures.workspace = true
+url.workspace = true
+mime.workspace = true
+
+axum.workspace = true
+axum-extra.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+hyper.workspace = true
+
+async-graphql.workspace = true
+async-graphql-axum.workspace = true
+
+utoipa.workspace = true
+utoipa-swagger-ui.workspace = true

@@ -1,0 +1,12 @@
+[build]
+rustflags = ["--cfg=web_sys_unstable_apis"]
+
+[alias]
+admin-dev = "leptos watch --project ferro-admin"
+admin-build = "leptos build --project ferro-admin --release --split"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "--cfg=web_sys_unstable_apis",
+    "-C", "target-feature=+bulk-memory,+mutable-globals",
+]
