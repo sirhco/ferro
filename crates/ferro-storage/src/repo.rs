@@ -50,6 +50,11 @@ pub trait ContentRepo: Send + Sync {
     async fn update(&self, id: ContentId, patch: ContentPatch) -> StorageResult<Content>;
     async fn publish(&self, id: ContentId) -> StorageResult<Content>;
     async fn delete(&self, id: ContentId) -> StorageResult<()>;
+
+    /// Insert or replace a full `Content` record verbatim (preserving ids and
+    /// timestamps). Used by import/migration tooling; user-facing writes should
+    /// go through `create`/`update`.
+    async fn upsert(&self, content: Content) -> StorageResult<Content>;
 }
 
 #[async_trait]
@@ -71,4 +76,7 @@ pub trait MediaMetaRepo: Send + Sync {
     async fn list(&self, site: SiteId) -> StorageResult<Vec<Media>>;
     async fn create(&self, m: Media) -> StorageResult<Media>;
     async fn delete(&self, id: MediaId) -> StorageResult<()>;
+
+    /// Insert or replace a media record verbatim. Used by import tooling.
+    async fn upsert(&self, m: Media) -> StorageResult<Media>;
 }

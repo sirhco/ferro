@@ -191,6 +191,9 @@ impl ContentRepo for SurrealRepo {
     async fn delete(&self, _id: ferro_core::ContentId) -> StorageResult<()> {
         todo_repo_method!()
     }
+    async fn upsert(&self, _c: ferro_core::Content) -> StorageResult<ferro_core::Content> {
+        todo_repo_method!()
+    }
 }
 
 #[async_trait]
@@ -233,6 +236,9 @@ impl MediaMetaRepo for SurrealRepo {
         todo_repo_method!()
     }
     async fn delete(&self, _id: ferro_core::MediaId) -> StorageResult<()> {
+        todo_repo_method!()
+    }
+    async fn upsert(&self, _m: ferro_core::Media) -> StorageResult<ferro_core::Media> {
         todo_repo_method!()
     }
 }

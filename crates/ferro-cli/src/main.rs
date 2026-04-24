@@ -4,15 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-
-mod build;
-mod config;
-mod export;
-mod import;
-mod init;
-mod migrate;
-mod plugin;
-mod serve;
+use ferro_cli::{build, export, import, init, migrate, plugin, serve};
 
 /// Ferro — Rust-powered content engine.
 #[derive(Debug, Parser)]

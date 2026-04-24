@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 description = "Ferro CLI: init, serve, migrate, export, import, plugin."
 
+[lib]
+name = "ferro_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "ferro"
 path = "src/main.rs"
@@ -40,3 +44,10 @@ thiserror.workspace = true
 time.workspace = true
 brotli.workspace = true
 url.workspace = true
+base64.workspace = true
+futures.workspace = true
+bytes.workspace = true
+mime_guess.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

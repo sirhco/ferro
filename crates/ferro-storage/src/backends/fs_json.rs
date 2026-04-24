@@ -269,6 +269,11 @@ impl ContentRepo for FsJsonRepo {
         }
         Ok(())
     }
+
+    async fn upsert(&self, content: Content) -> StorageResult<Content> {
+        Self::write(&self.path("content", &content.id.to_string()), &content).await?;
+        Ok(content)
+    }
 }
 
 #[async_trait]
@@ -354,5 +359,9 @@ impl MediaMetaRepo for FsJsonRepo {
             fs::remove_file(p).await?;
         }
         Ok(())
+    }
+    async fn upsert(&self, m: Media) -> StorageResult<Media> {
+        Self::write(&self.path("media", &m.id.to_string()), &m).await?;
+        Ok(m)
     }
 }

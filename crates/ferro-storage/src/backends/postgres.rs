@@ -656,6 +656,42 @@ impl ContentRepo for PgRepo {
             .map_err(map_sqlx)?;
         Ok(())
     }
+
+    async fn upsert(&self, content: Content) -> StorageResult<Content> {
+        let data = serde_json::to_value(&content.data).map_err(map_json)?;
+        sqlx::query(
+            r#"
+            INSERT INTO content (id, site_id, type_id, slug, locale, status, data,
+                                 author_id, created_at, updated_at, published_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (id) DO UPDATE SET
+                site_id = EXCLUDED.site_id,
+                type_id = EXCLUDED.type_id,
+                slug = EXCLUDED.slug,
+                locale = EXCLUDED.locale,
+                status = EXCLUDED.status,
+                data = EXCLUDED.data,
+                author_id = EXCLUDED.author_id,
+                updated_at = EXCLUDED.updated_at,
+                published_at = EXCLUDED.published_at
+            "#,
+        )
+        .bind(content.id.to_string())
+        .bind(content.site_id.to_string())
+        .bind(content.type_id.to_string())
+        .bind(&content.slug)
+        .bind(content.locale.to_string())
+        .bind(status_str(content.status))
+        .bind(&data)
+        .bind(content.author_id.map(|a| a.to_string()))
+        .bind(content.created_at)
+        .bind(content.updated_at)
+        .bind(content.published_at)
+        .execute(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+        Ok(content)
+    }
 }
 
 // --- UserRepo ---
@@ -824,5 +860,42 @@ impl MediaMetaRepo for PgRepo {
             .await
             .map_err(map_sqlx)?;
         Ok(())
+    }
+
+    async fn upsert(&self, m: Media) -> StorageResult<Media> {
+        sqlx::query(
+            r#"
+            INSERT INTO media (id, site_id, key, filename, mime, size, width, height,
+                               alt, kind, uploaded_by, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT (id) DO UPDATE SET
+                site_id = EXCLUDED.site_id,
+                key = EXCLUDED.key,
+                filename = EXCLUDED.filename,
+                mime = EXCLUDED.mime,
+                size = EXCLUDED.size,
+                width = EXCLUDED.width,
+                height = EXCLUDED.height,
+                alt = EXCLUDED.alt,
+                kind = EXCLUDED.kind,
+                uploaded_by = EXCLUDED.uploaded_by
+            "#,
+        )
+        .bind(m.id.to_string())
+        .bind(m.site_id.to_string())
+        .bind(&m.key)
+        .bind(&m.filename)
+        .bind(&m.mime)
+        .bind(m.size as i64)
+        .bind(m.width.map(|w| w as i32))
+        .bind(m.height.map(|h| h as i32))
+        .bind(&m.alt)
+        .bind(media_kind_str(m.kind))
+        .bind(m.uploaded_by.map(|u| u.to_string()))
+        .bind(m.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+        Ok(m)
     }
 }

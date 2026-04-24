@@ -80,6 +80,7 @@ impl ContentRepo for FsMarkdownRepo {
     async fn update(&self, _id: ContentId, _p: ContentPatch) -> StorageResult<Content> { tm!() }
     async fn publish(&self, _id: ContentId) -> StorageResult<Content> { tm!() }
     async fn delete(&self, _id: ContentId) -> StorageResult<()> { tm!() }
+    async fn upsert(&self, _c: Content) -> StorageResult<Content> { tm!() }
 }
 
 #[async_trait]
@@ -100,4 +101,5 @@ impl MediaMetaRepo for FsMarkdownRepo {
     async fn list(&self, _s: SiteId) -> StorageResult<Vec<Media>> { tm!() }
     async fn create(&self, _m: Media) -> StorageResult<Media> { tm!() }
     async fn delete(&self, _id: MediaId) -> StorageResult<()> { tm!() }
+    async fn upsert(&self, _m: Media) -> StorageResult<Media> { tm!() }
 }
