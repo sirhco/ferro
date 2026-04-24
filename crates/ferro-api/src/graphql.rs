@@ -1,17 +1,23 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_graphql::http::GraphiQLSource;
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Request, Schema};
+use async_graphql::{Context, EmptySubscription, InputObject, Object, Request, Schema};
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use ferro_auth::authorize;
+use ferro_core::{
+    ContentPatch, ContentType, ContentTypeId, FieldValue, NewContent, Permission, Scope, Site,
+};
 
+use crate::auth::AuthUser;
 use crate::state::AppState;
 
-/// Thin wrappers that let us expose domain types through async-graphql without
-/// touching `ferro-core`. Each wrapper exposes only the fields the admin /
-/// preview flow currently needs; richer GraphQL shapes land with v0.3.
+// --- Output nodes ---
+
 pub struct SiteNode(ferro_core::Site);
 
 #[Object]
@@ -54,7 +60,48 @@ impl ContentNode {
     }
 }
 
-pub type FerroSchema = Schema<Query, EmptyMutation, EmptySubscription>;
+pub struct LoginPayload {
+    token: String,
+    user: ferro_core::User,
+}
+
+#[Object]
+impl LoginPayload {
+    async fn token(&self) -> &str {
+        &self.token
+    }
+    async fn user_id(&self) -> String {
+        self.user.id.to_string()
+    }
+    async fn email(&self) -> &str {
+        &self.user.email
+    }
+    async fn handle(&self) -> &str {
+        &self.user.handle
+    }
+}
+
+// --- Input objects ---
+
+#[derive(InputObject)]
+struct NewContentInput {
+    type_slug: String,
+    slug: String,
+    locale: Option<String>,
+    /// Field data as a JSON object keyed by field slug.
+    data: serde_json::Value,
+}
+
+#[derive(InputObject)]
+struct ContentPatchInput {
+    slug: Option<String>,
+    /// Optional partial field data as a JSON object.
+    data: Option<serde_json::Value>,
+}
+
+// --- Schema ---
+
+pub type FerroSchema = Schema<Query, Mutation, EmptySubscription>;
 
 pub struct Query;
 
@@ -81,10 +128,158 @@ impl Query {
         };
         Ok(state.repo.content().by_slug(site.id, ty.id, &slug).await?.map(ContentNode))
     }
+
+    async fn me(&self, ctx: &Context<'_>) -> async_graphql::Result<Option<String>> {
+        Ok(ctx.data_opt::<AuthUser>().map(|a| a.user.email.clone()))
+    }
 }
 
+pub struct Mutation;
+
+const JWT_TTL_SECS: i64 = 60 * 60 * 12;
+
+#[Object]
+impl Mutation {
+    async fn login(
+        &self,
+        ctx: &Context<'_>,
+        email: String,
+        password: String,
+    ) -> async_graphql::Result<LoginPayload> {
+        let state = ctx.data::<Arc<AppState>>()?;
+        let (user, _session) = state.auth.login(&email, &password, None, None).await?;
+        let roles: Vec<String> = user.roles.iter().map(|r| r.to_string()).collect();
+        let token = state.jwt.mint(user.id, roles, JWT_TTL_SECS)?;
+        Ok(LoginPayload { token, user })
+    }
+
+    async fn create_content(
+        &self,
+        ctx: &Context<'_>,
+        input: NewContentInput,
+    ) -> async_graphql::Result<ContentNode> {
+        let state = ctx.data::<Arc<AppState>>()?;
+        let auth = require_auth(ctx)?;
+        let (site, ty) = resolve_type(state, &input.type_slug).await?;
+        require_write(auth, ty.id)?;
+
+        let data: BTreeMap<String, FieldValue> = serde_json::from_value(input.data)
+            .map_err(|e| async_graphql::Error::new(format!("invalid data: {e}")))?;
+        let locale = input
+            .locale
+            .map(|s| s.parse().map_err(|e: ferro_core::CoreError| e.to_string()))
+            .transpose()?
+            .unwrap_or_default();
+        let new = NewContent {
+            type_id: ty.id,
+            slug: input.slug,
+            locale,
+            data,
+            author_id: Some(auth.user.id),
+        };
+        new.validate(&ty)?;
+        Ok(ContentNode(state.repo.content().create(site.id, new).await?))
+    }
+
+    async fn update_content(
+        &self,
+        ctx: &Context<'_>,
+        type_slug: String,
+        slug: String,
+        patch: ContentPatchInput,
+    ) -> async_graphql::Result<ContentNode> {
+        let state = ctx.data::<Arc<AppState>>()?;
+        let auth = require_auth(ctx)?;
+        let (_site, ty, content) = resolve_entry(state, &type_slug, &slug).await?;
+        require_write(auth, ty.id)?;
+
+        let data = patch
+            .data
+            .map(serde_json::from_value::<BTreeMap<String, FieldValue>>)
+            .transpose()
+            .map_err(|e| async_graphql::Error::new(format!("invalid patch data: {e}")))?;
+        let cp = ContentPatch { slug: patch.slug, status: None, data };
+        cp.validate(&ty)?;
+        Ok(ContentNode(state.repo.content().update(content.id, cp).await?))
+    }
+
+    async fn publish_content(
+        &self,
+        ctx: &Context<'_>,
+        type_slug: String,
+        slug: String,
+    ) -> async_graphql::Result<ContentNode> {
+        let state = ctx.data::<Arc<AppState>>()?;
+        let auth = require_auth(ctx)?;
+        let (_site, ty, content) = resolve_entry(state, &type_slug, &slug).await?;
+        authorize(&auth.ctx, Permission::Publish(Scope::Type { id: ty.id }))
+            .map_err(|_| async_graphql::Error::new("publish denied"))?;
+        Ok(ContentNode(state.repo.content().publish(content.id).await?))
+    }
+
+    async fn delete_content(
+        &self,
+        ctx: &Context<'_>,
+        type_slug: String,
+        slug: String,
+    ) -> async_graphql::Result<bool> {
+        let state = ctx.data::<Arc<AppState>>()?;
+        let auth = require_auth(ctx)?;
+        let (_site, ty, content) = resolve_entry(state, &type_slug, &slug).await?;
+        require_write(auth, ty.id)?;
+        state.repo.content().delete(content.id).await?;
+        Ok(true)
+    }
+}
+
+fn require_auth<'a>(ctx: &'a Context<'_>) -> async_graphql::Result<&'a AuthUser> {
+    ctx.data_opt::<AuthUser>()
+        .ok_or_else(|| async_graphql::Error::new("unauthenticated"))
+}
+
+fn require_write(auth: &AuthUser, ty: ContentTypeId) -> async_graphql::Result<()> {
+    authorize(&auth.ctx, Permission::Write(Scope::Type { id: ty }))
+        .map_err(|_| async_graphql::Error::new("write denied"))?;
+    Ok(())
+}
+
+async fn resolve_type(
+    state: &AppState,
+    type_slug: &str,
+) -> async_graphql::Result<(Site, ContentType)> {
+    let sites = state.repo.sites().list().await?;
+    let site = sites
+        .into_iter()
+        .next()
+        .ok_or_else(|| async_graphql::Error::new("no site"))?;
+    let ty = state
+        .repo
+        .types()
+        .by_slug(site.id, type_slug)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("content type not found"))?;
+    Ok((site, ty))
+}
+
+async fn resolve_entry(
+    state: &AppState,
+    type_slug: &str,
+    slug: &str,
+) -> async_graphql::Result<(Site, ContentType, ferro_core::Content)> {
+    let (site, ty) = resolve_type(state, type_slug).await?;
+    let content = state
+        .repo
+        .content()
+        .by_slug(site.id, ty.id, slug)
+        .await?
+        .ok_or_else(|| async_graphql::Error::new("content not found"))?;
+    Ok((site, ty, content))
+}
+
+// --- Router ---
+
 pub fn schema(state: Arc<AppState>) -> FerroSchema {
-    Schema::build(Query, EmptyMutation, EmptySubscription).data(state).finish()
+    Schema::build(Query, Mutation, EmptySubscription).data(state).finish()
 }
 
 pub fn router() -> Router<Arc<AppState>> {
@@ -95,8 +290,20 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn graphql_handler(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<Request>,
 ) -> Json<async_graphql::Response> {
+    let auth = match AuthUser::try_from_headers(&state, &headers).await {
+        Ok(v) => v,
+        Err(e) => {
+            // Token present but invalid — surface as GraphQL error rather than
+            // silently dropping to anonymous.
+            return Json(async_graphql::Response::from_errors(vec![
+                async_graphql::ServerError::new(e.to_string(), None),
+            ]));
+        }
+    };
+    let req = if let Some(a) = auth { req.data(a) } else { req };
     Json(schema(state).execute(req).await)
 }
 
