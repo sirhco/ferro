@@ -1,11 +1,17 @@
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use ferro_core::{Content, ContentQuery, NewContent, Page, Site};
-use serde::Deserialize;
+use ferro_auth::{authorize, AuthContext};
+use ferro_core::{
+    Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, NewContent, Page,
+    Permission, Scope, Site, User,
+};
+use serde::{Deserialize, Serialize};
 
+use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -13,9 +19,22 @@ pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
+        .route("/api/v1/auth/login", post(login))
+        .route("/api/v1/auth/logout", post(logout))
+        .route("/api/v1/auth/me", get(me))
         .route("/api/v1/sites", get(list_sites))
-        .route("/api/v1/content/:type_slug", get(list_content).post(create_content))
-        .route("/api/v1/content/:type_slug/:slug", get(get_content))
+        .route(
+            "/api/v1/content/:type_slug",
+            get(list_content).post(create_content),
+        )
+        .route(
+            "/api/v1/content/:type_slug/:slug",
+            get(get_content).patch(update_content).delete(delete_content),
+        )
+        .route(
+            "/api/v1/content/:type_slug/:slug/publish",
+            post(publish_content),
+        )
 }
 
 async fn healthz() -> &'static str {
@@ -47,7 +66,9 @@ async fn list_content(
     let q = ContentQuery {
         type_slug: Some(type_slug),
         locale: params.locale.and_then(|l| l.parse().ok()),
-        status: params.status.and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok()),
+        status: params
+            .status
+            .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok()),
         page: params.page,
         per_page: params.per_page,
         ..Default::default()
@@ -59,39 +80,126 @@ async fn get_content(
     State(state): State<Arc<AppState>>,
     Path((type_slug, slug)): Path<(String, String)>,
 ) -> ApiResult<Json<Content>> {
-    let sites = state.repo.sites().list().await?;
-    let site = sites.first().ok_or(ApiError::NotFound)?;
-    let ty = state
-        .repo
-        .types()
-        .by_slug(site.id, &type_slug)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    let content = state
-        .repo
-        .content()
-        .by_slug(site.id, ty.id, &slug)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let (_site, _ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
     Ok(Json(content))
 }
 
 async fn create_content(
     State(state): State<Arc<AppState>>,
+    auth: AuthUser,
     Path(type_slug): Path<String>,
     Json(body): Json<NewContent>,
 ) -> ApiResult<Json<Content>> {
+    let (site, ty) = resolve_type(&state, &type_slug).await?;
+    if body.type_id != ty.id {
+        return Err(ApiError::BadRequest(
+            "type_id does not match URL type slug".into(),
+        ));
+    }
+    require_write(&auth.ctx, ty.id)?;
+    body.validate(&ty)?;
+    Ok(Json(state.repo.content().create(site.id, body).await?))
+}
+
+async fn update_content(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path((type_slug, slug)): Path<(String, String)>,
+    Json(patch): Json<ContentPatch>,
+) -> ApiResult<Json<Content>> {
+    let (_site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
+    require_write(&auth.ctx, ty.id)?;
+    patch.validate(&ty)?;
+    Ok(Json(state.repo.content().update(content.id, patch).await?))
+}
+
+async fn delete_content(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path((type_slug, slug)): Path<(String, String)>,
+) -> ApiResult<StatusCode> {
+    let (_site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
+    require_write(&auth.ctx, ty.id)?;
+    state.repo.content().delete(content.id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn publish_content(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path((type_slug, slug)): Path<(String, String)>,
+) -> ApiResult<Json<Content>> {
+    let (_site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
+    authorize(&auth.ctx, Permission::Publish(Scope::Type { id: ty.id }))
+        .map_err(|_| ApiError::Forbidden("publish denied".into()))?;
+    Ok(Json(state.repo.content().publish(content.id).await?))
+}
+
+#[derive(Debug, Deserialize)]
+struct LoginBody {
+    email: String,
+    password: String,
+}
+
+#[derive(Debug, Serialize)]
+struct LoginResponse {
+    token: String,
+    user: User,
+}
+
+const JWT_TTL_SECS: i64 = 60 * 60 * 12; // 12 hours
+
+async fn login(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<LoginBody>,
+) -> ApiResult<Json<LoginResponse>> {
+    let (user, _session) = state.auth.login(&body.email, &body.password, None, None).await?;
+    let role_names: Vec<String> = user.roles.iter().map(|r| r.to_string()).collect();
+    let token = state
+        .jwt
+        .mint(user.id, role_names, JWT_TTL_SECS)
+        .map_err(ApiError::Auth)?;
+    Ok(Json(LoginResponse { token, user }))
+}
+
+async fn logout(State(_state): State<Arc<AppState>>, _auth: AuthUser) -> ApiResult<StatusCode> {
+    // Stateless JWT: nothing to revoke server-side without a denylist.
+    // Client discards the token; 204 signals the intent.
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn me(auth: AuthUser) -> Json<User> {
+    Json(auth.user)
+}
+
+async fn resolve_type(state: &AppState, type_slug: &str) -> ApiResult<(Site, ContentType)> {
     let sites = state.repo.sites().list().await?;
-    let site = sites.first().ok_or(ApiError::NotFound)?;
+    let site = sites.into_iter().next().ok_or(ApiError::NotFound)?;
     let ty = state
         .repo
         .types()
-        .by_slug(site.id, &type_slug)
+        .by_slug(site.id, type_slug)
         .await?
         .ok_or(ApiError::NotFound)?;
-    if body.type_id != ty.id {
-        return Err(ApiError::BadRequest("type_id does not match URL type slug".into()));
-    }
-    body.validate(&ty)?;
-    Ok(Json(state.repo.content().create(site.id, body).await?))
+    Ok((site, ty))
+}
+
+async fn resolve_entry(
+    state: &AppState,
+    type_slug: &str,
+    slug: &str,
+) -> ApiResult<(Site, ContentType, Content)> {
+    let (site, ty) = resolve_type(state, type_slug).await?;
+    let content = state
+        .repo
+        .content()
+        .by_slug(site.id, ty.id, slug)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    Ok((site, ty, content))
+}
+
+fn require_write(ctx: &AuthContext, ty: ContentTypeId) -> ApiResult<()> {
+    authorize(ctx, Permission::Write(Scope::Type { id: ty }))
+        .map_err(|_| ApiError::Forbidden("write denied".into()))
 }

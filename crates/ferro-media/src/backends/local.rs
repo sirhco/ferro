@@ -19,13 +19,13 @@ mod tokio_util_hack {
     use futures::Stream;
     use tokio::io::{AsyncRead, ReadBuf};
 
-    pub struct ReaderStream<R> {
+    pub(super) struct ReaderStream<R> {
         reader: Pin<Box<R>>,
         buf: Vec<u8>,
     }
 
     impl<R: AsyncRead + Send + 'static> ReaderStream<R> {
-        pub fn new(reader: R) -> Self {
+        pub(super) fn new(reader: R) -> Self {
             Self { reader: Box::pin(reader), buf: vec![0u8; 64 * 1024] }
         }
     }

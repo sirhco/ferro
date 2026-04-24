@@ -2,13 +2,13 @@
 
 #![deny(rust_2018_idioms, unreachable_pub)]
 
+pub mod auth;
 pub mod error;
 pub mod graphql;
 pub mod rest;
 pub mod state;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use axum::Router;
 use tower_http::compression::CompressionLayer;
@@ -23,12 +23,15 @@ pub fn router(state: Arc<AppState>) -> Router {
     let trace = TraceLayer::new_for_http();
     let compression = CompressionLayer::new().br(true).gzip(true);
 
+    // NOTE: request timeout deferred — `tower::timeout::TimeoutLayer` maps its
+    // error to `Box<dyn Error>` which Axum 0.7's router cannot fold into
+    // `Infallible`. Reinstate via `tower_http::timeout` once that feature is
+    // enabled in the workspace.
     Router::new()
         .merge(rest::router())
         .merge(graphql::router())
         .layer(compression)
         .layer(cors)
         .layer(trace)
-        .layer(tower::timeout::TimeoutLayer::new(Duration::from_secs(30)))
         .with_state(state)
 }

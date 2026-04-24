@@ -74,6 +74,8 @@ base_url = "http://localhost:8080/media"
 [auth]
 session_secret = "CHANGE_ME_{random}"
 jwt_issuer = "ferro"
+# Override via env: FERRO_JWT_SECRET=...
+jwt_secret = "CHANGE_ME_JWT_{random}"
 allow_public_signup = false
 
 [plugins]

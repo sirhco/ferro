@@ -37,3 +37,10 @@ async-graphql-axum.workspace = true
 
 utoipa.workspace = true
 utoipa-swagger-ui.workspace = true
+
+[dev-dependencies]
+ferro-storage = { workspace = true, features = ["fs-json"] }
+ferro-media = { workspace = true }
+tempfile = "3"
+tower = { workspace = true, features = ["util"] }
+http-body-util = "0.1"

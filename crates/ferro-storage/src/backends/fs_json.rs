@@ -138,7 +138,7 @@ impl ContentTypeRepo for FsJsonRepo {
         Self::read(&self.path("types", &id.to_string())).await
     }
     async fn by_slug(&self, site: SiteId, slug: &str) -> StorageResult<Option<ContentType>> {
-        for t in self.list(site).await? {
+        for t in ContentTypeRepo::list(self, site).await? {
             if t.slug == slug {
                 return Ok(Some(t));
             }

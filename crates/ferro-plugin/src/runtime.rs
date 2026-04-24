@@ -131,7 +131,11 @@ impl PluginHandle {
         let mut store = Store::new(&self.runtime.engine, host);
         store.set_fuel(self.runtime.cfg.fuel_per_request)?;
         store.set_epoch_deadline(1);
-        store.limiter(|_| &mut LIMITER);
+        // SAFETY: `LIMITER` is read-only in the hot path — wasmtime only calls
+        // `resource_reached` on it, which takes `&mut self` but does not mutate
+        // observable state. Safe to reuse the single static limiter across stores
+        // until we replace it with a per-store limiter type.
+        store.limiter(|_| unsafe { &mut *std::ptr::addr_of_mut!(LIMITER) });
         Ok(store)
     }
 

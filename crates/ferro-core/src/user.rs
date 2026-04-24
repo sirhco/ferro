@@ -5,7 +5,7 @@ use zeroize_hack::ZeroizeHash;
 mod zeroize_hack {
     /// Marker type for hashes that should be zeroized when dropped.
     /// Actual zeroize wiring lives in `ferro-auth`; here we just model the shape.
-    pub type ZeroizeHash = String;
+    pub(super) type ZeroizeHash = String;
 }
 
 use crate::id::{RoleId, UserId};

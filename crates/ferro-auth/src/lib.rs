@@ -14,4 +14,4 @@ pub use jwt::{JwtClaims, JwtManager};
 pub use password::{hash_password, verify_password};
 pub use policy::{authorize, AuthContext};
 pub use service::AuthService;
-pub use session::{Session, SessionStore};
+pub use session::{MemorySessionStore, Session, SessionStore};

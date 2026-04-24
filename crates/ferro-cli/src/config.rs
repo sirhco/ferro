@@ -26,8 +26,33 @@ pub struct ServerConfig {
 pub struct AuthConfig {
     pub session_secret: String,
     pub jwt_issuer: String,
+    /// HMAC secret used to sign JWTs. Prefer setting via `FERRO_JWT_SECRET`.
+    /// Falls back to `session_secret` when unset; warn loudly in that case.
+    #[serde(default)]
+    pub jwt_secret: Option<String>,
     #[serde(default)]
     pub allow_public_signup: bool,
+}
+
+impl AuthConfig {
+    /// Resolve the JWT signing secret, checking `FERRO_JWT_SECRET` first, then
+    /// `auth.jwt_secret`, then falling back to `session_secret` with a warning.
+    pub fn resolve_jwt_secret(&self) -> String {
+        if let Ok(v) = std::env::var("FERRO_JWT_SECRET") {
+            if !v.is_empty() {
+                return v;
+            }
+        }
+        if let Some(v) = self.jwt_secret.as_deref() {
+            if !v.is_empty() {
+                return v.to_string();
+            }
+        }
+        tracing::warn!(
+            "auth.jwt_secret not set and FERRO_JWT_SECRET not in env; reusing session_secret for JWT signing"
+        );
+        self.session_secret.clone()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

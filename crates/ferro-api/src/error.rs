@@ -26,6 +26,8 @@ pub enum ApiError {
     NotFound,
     #[error("unauthorized")]
     Unauthorized,
+    #[error("forbidden: {0}")]
+    Forbidden(String),
     #[error("internal: {0}")]
     Internal(String),
 }
@@ -43,7 +45,9 @@ impl IntoResponse for ApiError {
             Self::Unauthorized | Self::Auth(AuthError::InvalidCredentials) => {
                 (StatusCode::UNAUTHORIZED, "unauthorized")
             }
-            Self::Auth(AuthError::Forbidden) => (StatusCode::FORBIDDEN, "forbidden"),
+            Self::Forbidden(_) | Self::Auth(AuthError::Forbidden) => {
+                (StatusCode::FORBIDDEN, "forbidden")
+            }
             Self::BadRequest(_) | Self::Core(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         };
