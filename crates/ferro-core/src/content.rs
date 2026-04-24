@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::error::{CoreError, CoreResult};
-use crate::field::{FieldDef, FieldValue};
+use crate::field::{FieldDef, FieldKind, FieldValue};
 use crate::id::{ContentId, ContentTypeId, SiteId, UserId};
 use crate::locale::Locale;
 use crate::validation::validate_slug;
@@ -46,6 +46,82 @@ impl ContentType {
         }
         Ok(())
     }
+
+    /// Compare two versions of a `ContentType` and return the field-level
+    /// changes needed to migrate existing content data from `old` to `new`.
+    ///
+    /// Field matching is keyed by `FieldDef.id` — same id + different slug is
+    /// a `Rename`, same id + different kind is `KindChanged`, missing-in-new
+    /// is `Removed`, missing-in-old is `Added`.
+    #[must_use]
+    pub fn diff(old: &ContentType, new: &ContentType) -> Vec<FieldChange> {
+        use std::collections::HashMap;
+
+        let mut out = Vec::new();
+        let old_by_id: HashMap<_, _> = old.fields.iter().map(|f| (f.id, f)).collect();
+        let new_by_id: HashMap<_, _> = new.fields.iter().map(|f| (f.id, f)).collect();
+
+        for (id, nf) in &new_by_id {
+            match old_by_id.get(id) {
+                None => out.push(FieldChange::Added(nf.slug.clone())),
+                Some(of) => {
+                    if of.slug != nf.slug {
+                        out.push(FieldChange::Renamed {
+                            from: of.slug.clone(),
+                            to: nf.slug.clone(),
+                        });
+                    }
+                    if !field_kind_compatible(&of.kind, &nf.kind) {
+                        out.push(FieldChange::KindChanged {
+                            slug: nf.slug.clone(),
+                        });
+                    }
+                }
+            }
+        }
+        for (id, of) in &old_by_id {
+            if !new_by_id.contains_key(id) {
+                out.push(FieldChange::Removed(of.slug.clone()));
+            }
+        }
+        out
+    }
+}
+
+/// A single field-level change between two `ContentType` versions. Consumed by
+/// the storage-layer schema migrator to rewrite existing content data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub enum FieldChange {
+    /// New field; existing rows get a `Null` until edited.
+    Added(String),
+    /// Field no longer in schema; drop value from content data.
+    Removed(String),
+    /// Field kept, slug changed. Move value across keys.
+    Renamed { from: String, to: String },
+    /// Field kind changed; value left as-is, validator will flag on next edit.
+    KindChanged { slug: String },
+}
+
+/// Two `FieldKind`s are "compatible" (no migration needed) when they have the
+/// same discriminant. Inner constraints (min/max, enum options, etc.) tighten
+/// validation but don't break stored values.
+fn field_kind_compatible(a: &FieldKind, b: &FieldKind) -> bool {
+    use FieldKind as K;
+    matches!(
+        (a, b),
+        (K::Text { .. }, K::Text { .. })
+            | (K::RichText { .. }, K::RichText { .. })
+            | (K::Number { .. }, K::Number { .. })
+            | (K::Boolean, K::Boolean)
+            | (K::Date, K::Date)
+            | (K::DateTime, K::DateTime)
+            | (K::Enum { .. }, K::Enum { .. })
+            | (K::Reference { .. }, K::Reference { .. })
+            | (K::Media { .. }, K::Media { .. })
+            | (K::Json, K::Json)
+            | (K::Slug { .. }, K::Slug { .. })
+    )
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -215,5 +291,70 @@ mod tests {
             data: None,
         };
         assert!(p.validate(&test_type()).is_err());
+    }
+
+    #[test]
+    fn diff_detects_added_field() {
+        let old = test_type();
+        let mut new = test_type();
+        // Preserve the same ids so only the new field is treated as added.
+        new.fields = old.fields.clone();
+        new.fields.push(FieldDef {
+            id: FieldId::new(),
+            slug: "body".into(),
+            name: "Body".into(),
+            help: None,
+            kind: FieldKind::RichText { format: crate::field::RichFormat::Markdown },
+            required: false,
+            localized: false,
+            unique: false,
+            hidden: false,
+        });
+        let changes = ContentType::diff(&old, &new);
+        assert_eq!(changes.len(), 1);
+        assert!(matches!(&changes[0], FieldChange::Added(s) if s == "body"));
+    }
+
+    #[test]
+    fn diff_detects_removed_field() {
+        let old = test_type();
+        let mut new = test_type();
+        new.fields = old.fields.iter().take(1).cloned().collect();
+        let changes = ContentType::diff(&old, &new);
+        assert_eq!(changes.len(), 1);
+        assert!(matches!(&changes[0], FieldChange::Removed(s) if s == "count"));
+    }
+
+    #[test]
+    fn diff_detects_rename() {
+        let old = test_type();
+        let mut new = old.clone();
+        new.fields[0].slug = "headline".into();
+        let changes = ContentType::diff(&old, &new);
+        assert_eq!(changes.len(), 1);
+        assert!(matches!(
+            &changes[0],
+            FieldChange::Renamed { from, to } if from == "title" && to == "headline"
+        ));
+    }
+
+    #[test]
+    fn diff_detects_kind_change() {
+        let old = test_type();
+        let mut new = old.clone();
+        new.fields[1].kind = FieldKind::Text { multiline: false, max: None };
+        let changes = ContentType::diff(&old, &new);
+        assert_eq!(changes.len(), 1);
+        assert!(matches!(&changes[0], FieldChange::KindChanged { slug } if slug == "count"));
+    }
+
+    #[test]
+    fn diff_ignores_inner_constraint_change() {
+        let old = test_type();
+        let mut new = old.clone();
+        // Tightening bounds isn't a schema-migration event.
+        new.fields[1].kind = FieldKind::Number { int: true, min: Some(1.0), max: Some(5.0) };
+        let changes = ContentType::diff(&old, &new);
+        assert!(changes.is_empty(), "got {changes:?}");
     }
 }

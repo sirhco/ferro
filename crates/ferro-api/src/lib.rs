@@ -5,6 +5,7 @@
 pub mod auth;
 pub mod error;
 pub mod graphql;
+pub mod openapi;
 pub mod rest;
 pub mod state;
 
@@ -30,6 +31,7 @@ pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(rest::router())
         .merge(graphql::router())
+        .merge(openapi::router())
         .layer(compression)
         .layer(cors)
         .layer(trace)

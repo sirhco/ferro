@@ -10,6 +10,7 @@ pub mod backends;
 pub mod config;
 pub mod error;
 pub mod repo;
+pub mod schema;
 
 pub use config::StorageConfig;
 pub use error::{StorageError, StorageResult};

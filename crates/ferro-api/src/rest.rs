@@ -9,6 +9,7 @@ use ferro_core::{
     Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, NewContent, Page,
     Permission, Scope, Site, User,
 };
+use ferro_storage::schema as schema_migrator;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::AuthUser;
@@ -34,6 +35,11 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/v1/content/:type_slug/:slug/publish",
             post(publish_content),
+        )
+        .route("/api/v1/types", get(list_types).post(create_type))
+        .route(
+            "/api/v1/types/:slug",
+            get(get_type).patch(update_type).delete(delete_type),
         )
 }
 
@@ -202,4 +208,80 @@ async fn resolve_entry(
 fn require_write(ctx: &AuthContext, ty: ContentTypeId) -> ApiResult<()> {
     authorize(ctx, Permission::Write(Scope::Type { id: ty }))
         .map_err(|_| ApiError::Forbidden("write denied".into()))
+}
+
+fn require_manage_schema(ctx: &AuthContext) -> ApiResult<()> {
+    authorize(ctx, Permission::ManageSchema)
+        .map_err(|_| ApiError::Forbidden("schema management denied".into()))
+}
+
+// --- Content-type routes ---
+
+async fn list_types(State(state): State<Arc<AppState>>) -> ApiResult<Json<Vec<ContentType>>> {
+    let sites = state.repo.sites().list().await?;
+    let Some(site) = sites.into_iter().next() else {
+        return Ok(Json(Vec::new()));
+    };
+    Ok(Json(state.repo.types().list(site.id).await?))
+}
+
+async fn get_type(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+) -> ApiResult<Json<ContentType>> {
+    let (_site, ty) = resolve_type(&state, &slug).await?;
+    Ok(Json(ty))
+}
+
+async fn create_type(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(mut ty): Json<ContentType>,
+) -> ApiResult<Json<ContentType>> {
+    require_manage_schema(&auth.ctx)?;
+    let sites = state.repo.sites().list().await?;
+    let site = sites.into_iter().next().ok_or(ApiError::NotFound)?;
+    // Force site scoping to the caller's site (prevents client-supplied site_id
+    // from pointing at an unrelated tenant).
+    ty.site_id = site.id;
+    Ok(Json(state.repo.types().upsert(ty).await?))
+}
+
+#[derive(Debug, Serialize)]
+struct TypeUpdateResponse {
+    #[serde(rename = "type")]
+    ty: ContentType,
+    /// Number of content rows rewritten by the schema migrator.
+    rows_migrated: u64,
+    /// Field changes that were applied.
+    changes: Vec<ferro_core::FieldChange>,
+}
+
+async fn update_type(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(slug): Path<String>,
+    Json(new_ty): Json<ContentType>,
+) -> ApiResult<Json<TypeUpdateResponse>> {
+    require_manage_schema(&auth.ctx)?;
+    let (site, old) = resolve_type(&state, &slug).await?;
+    if new_ty.id != old.id {
+        return Err(ApiError::BadRequest("content-type id cannot change".into()));
+    }
+    let changes = ContentType::diff(&old, &new_ty);
+    let saved = state.repo.types().upsert(new_ty).await?;
+    let rows_migrated =
+        schema_migrator::apply_changes(&*state.repo, site.id, saved.id, &changes).await?;
+    Ok(Json(TypeUpdateResponse { ty: saved, rows_migrated, changes }))
+}
+
+async fn delete_type(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(slug): Path<String>,
+) -> ApiResult<StatusCode> {
+    require_manage_schema(&auth.ctx)?;
+    let (_site, ty) = resolve_type(&state, &slug).await?;
+    state.repo.types().delete(ty.id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
