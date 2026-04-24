@@ -1,0 +1,15 @@
+[package]
+name = "starter-blog"
+version = "0.0.1"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Minimal Ferro example site: blog with posts + authors."
+
+[dependencies]
+ferro-core.workspace = true
+ferro-macros.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true

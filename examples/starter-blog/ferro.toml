@@ -1,0 +1,23 @@
+[server]
+bind = "127.0.0.1:8080"
+public_url = "http://localhost:8080"
+admin_enabled = true
+
+[storage]
+kind = "fs-json"
+path = "./data"
+
+[media]
+kind = "local"
+path = "./media-store"
+base_url = "http://localhost:8080/media"
+
+[auth]
+session_secret = "CHANGE_ME_EXAMPLE_SECRET_MIN_32_BYTES__"
+jwt_issuer = "ferro-starter-blog"
+allow_public_signup = false
+
+[plugins]
+dir = "./plugins"
+max_memory_mb = 128
+fuel_per_request = 10_000_000

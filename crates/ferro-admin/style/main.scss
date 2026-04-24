@@ -1,0 +1,115 @@
+// Ferro admin — scaffold styles. Real theme lives in a later pass.
+:root {
+    --ferro-bg: #0e0f12;
+    --ferro-fg: #e8e9ed;
+    --ferro-accent: #d97706;
+    --ferro-border: #2a2c32;
+    --ferro-muted: #8b8e95;
+    --ferro-radius: 6px;
+    --ferro-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body.ferro-admin-body {
+    margin: 0;
+    background: var(--ferro-bg);
+    color: var(--ferro-fg);
+    font-family: var(--ferro-font);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+#ferro-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+h1 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+a {
+    color: var(--ferro-accent);
+    text-decoration: none;
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.ferro-quicklinks {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.ferro-login {
+    max-width: 360px;
+    margin: 8rem auto;
+    display: grid;
+    gap: 1rem;
+
+    label {
+        display: grid;
+        gap: 0.25rem;
+    }
+
+    input {
+        padding: 0.5rem 0.75rem;
+        background: #1a1c22;
+        border: 1px solid var(--ferro-border);
+        border-radius: var(--ferro-radius);
+        color: var(--ferro-fg);
+    }
+
+    button {
+        padding: 0.6rem;
+        background: var(--ferro-accent);
+        color: #fff;
+        border: none;
+        border-radius: var(--ferro-radius);
+        cursor: pointer;
+        font-weight: 600;
+    }
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    th,
+    td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--ferro-border);
+        text-align: left;
+    }
+}
+
+.ferro-markdown-editor {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+
+    textarea {
+        width: 100%;
+        min-height: 20rem;
+        background: #14161b;
+        border: 1px solid var(--ferro-border);
+        color: var(--ferro-fg);
+        padding: 0.75rem;
+        border-radius: var(--ferro-radius);
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+    }
+
+    .ferro-markdown-preview {
+        background: #14161b;
+        border: 1px solid var(--ferro-border);
+        border-radius: var(--ferro-radius);
+        padding: 0.75rem;
+        overflow-y: auto;
+    }
+}
