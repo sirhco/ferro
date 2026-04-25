@@ -420,9 +420,42 @@ impl PathItemExt for PathItem {
 // --- router ---
 
 pub fn router() -> Router<Arc<AppState>> {
-    Router::new().route("/api/openapi.json", get(openapi_json))
+    Router::new()
+        .route("/api/openapi.json", get(openapi_json))
+        .route("/api/docs", get(swagger_ui))
 }
 
 async fn openapi_json(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
     Json(api_doc())
 }
+
+/// Serve a self-contained Swagger UI page that loads our spec from
+/// `/api/openapi.json`. We pull swagger-ui assets from a public CDN rather
+/// than depending on `utoipa-swagger-ui` because that crate's axum
+/// integration targets axum 0.8 and ferro is on 0.7.
+async fn swagger_ui() -> impl IntoResponse {
+    use axum::response::Html;
+    Html(SWAGGER_HTML)
+}
+
+const SWAGGER_HTML: &str = r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Ferro API — Swagger</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        window.ui = SwaggerUIBundle({
+            url: '/api/openapi.json',
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset]
+        });
+    </script>
+</body>
+</html>
+"#;
