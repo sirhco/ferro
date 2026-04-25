@@ -38,25 +38,22 @@ pub fn api_doc() -> OpenApi {
     );
 
     let components = ComponentsBuilder::new()
-        .schema("LoginBody", Schema::from(opaque_object("Login email + password.")))
-        .schema(
-            "LoginResponse",
-            Schema::from(opaque_object("Bearer JWT + user record.")),
-        )
-        .schema("Content", Schema::from(opaque_object("Content entry.")))
-        .schema("ContentPatch", Schema::from(opaque_object("Partial update.")))
-        .schema(
-            "ContentType",
-            Schema::from(opaque_object("Content type / schema definition.")),
-        )
-        .schema("Page", Schema::from(opaque_object("Paginated list envelope.")))
-        .schema("Site", Schema::from(opaque_object("Site record.")))
-        .schema("User", Schema::from(opaque_object("User record.")))
+        .schema("LoginBody", login_body_schema())
+        .schema("LoginResponse", login_response_schema())
+        .schema("MfaChallenge", mfa_challenge_schema())
+        .schema("Content", content_schema())
+        .schema("ContentPatch", content_patch_schema())
+        .schema("ContentType", content_type_schema())
+        .schema("FieldDef", field_def_schema())
+        .schema("Page", page_schema())
+        .schema("Site", site_schema())
+        .schema("User", user_schema())
+        .schema("Role", role_schema())
+        .schema("Media", media_schema())
+        .schema("ContentVersion", content_version_schema())
         .schema(
             "TypeUpdateResponse",
-            Schema::from(opaque_object(
-                "Content type after update + schema migration report.",
-            )),
+            type_update_response_schema(),
         )
         .security_scheme("bearer", bearer)
         .build();
@@ -400,6 +397,364 @@ fn text_200() -> Response {
 
 fn no_content() -> Response {
     ResponseBuilder::new().description("no content").build()
+}
+
+// --- Component schemas (hand-built; richer than a derived ToSchema since the
+// REST handlers serialize core types verbatim and adding `utoipa::ToSchema`
+// derives across `ferro-core` would couple the domain crate to the doc tool) ---
+
+fn str_field() -> ObjectBuilder {
+    ObjectBuilder::new().schema_type(Type::String)
+}
+
+fn ulid_field() -> ObjectBuilder {
+    ObjectBuilder::new()
+        .schema_type(Type::String)
+        .description(Some("Crockford ULID (26 chars).".to_string()))
+}
+
+fn rfc3339_field() -> ObjectBuilder {
+    ObjectBuilder::new()
+        .schema_type(Type::String)
+        .format(Some(utoipa::openapi::SchemaFormat::KnownFormat(
+            utoipa::openapi::KnownFormat::DateTime,
+        )))
+}
+
+fn bool_field() -> ObjectBuilder {
+    ObjectBuilder::new().schema_type(Type::Boolean)
+}
+
+fn int_field() -> ObjectBuilder {
+    ObjectBuilder::new().schema_type(Type::Integer)
+}
+
+fn opaque_field(desc: &str) -> ObjectBuilder {
+    ObjectBuilder::new()
+        .schema_type(Type::Object)
+        .description(Some(desc.to_string()))
+}
+
+fn array_of(name: &str) -> Schema {
+    Schema::Array(
+        ArrayBuilder::new()
+            .items(RefOr::Ref(Ref::from_schema_name(name)))
+            .build(),
+    )
+}
+
+fn login_body_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("email", str_field())
+            .property("password", str_field())
+            .required("email")
+            .required("password")
+            .build(),
+    )
+}
+
+fn login_response_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("token", str_field().description(Some("Short-lived JWT.".to_string())))
+            .property(
+                "refresh_token",
+                str_field().description(Some("Long-lived opaque refresh token.".to_string())),
+            )
+            .property("user", RefOr::Ref(Ref::from_schema_name("User")))
+            .required("token")
+            .required("refresh_token")
+            .required("user")
+            .build(),
+    )
+}
+
+fn mfa_challenge_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("mfa_required", bool_field())
+            .property("mfa_token", str_field())
+            .required("mfa_required")
+            .required("mfa_token")
+            .build(),
+    )
+}
+
+fn site_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("slug", str_field())
+            .property("name", str_field())
+            .property(
+                "description",
+                str_field().description(Some("Optional.".to_string())),
+            )
+            .property(
+                "primary_url",
+                str_field().description(Some("Optional URL.".to_string())),
+            )
+            .property("locales", Schema::Array(
+                ArrayBuilder::new()
+                    .items(RefOr::T(Schema::Object(str_field().build())))
+                    .build(),
+            ))
+            .property("default_locale", str_field())
+            .property("settings", opaque_field("Free-form site settings"))
+            .property("created_at", rfc3339_field())
+            .property("updated_at", rfc3339_field())
+            .required("id")
+            .required("slug")
+            .required("name")
+            .required("default_locale")
+            .required("created_at")
+            .required("updated_at")
+            .build(),
+    )
+}
+
+fn field_def_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("slug", str_field())
+            .property("name", str_field())
+            .property("help", str_field())
+            .property(
+                "kind",
+                opaque_field(
+                    "Tagged union: text/rich_text/number/boolean/date/date_time/enum/reference/media/json/slug",
+                ),
+            )
+            .property("required", bool_field())
+            .property("localized", bool_field())
+            .property("unique", bool_field())
+            .property("hidden", bool_field())
+            .required("id")
+            .required("slug")
+            .required("name")
+            .required("kind")
+            .build(),
+    )
+}
+
+fn content_type_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("site_id", ulid_field())
+            .property("slug", str_field())
+            .property("name", str_field())
+            .property("description", str_field())
+            .property("fields", Schema::Array(
+                ArrayBuilder::new()
+                    .items(RefOr::Ref(Ref::from_schema_name("FieldDef")))
+                    .build(),
+            ))
+            .property("singleton", bool_field())
+            .property("title_field", str_field())
+            .property("slug_field", str_field())
+            .property("created_at", rfc3339_field())
+            .property("updated_at", rfc3339_field())
+            .required("id")
+            .required("site_id")
+            .required("slug")
+            .required("name")
+            .required("created_at")
+            .required("updated_at")
+            .build(),
+    )
+}
+
+fn content_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("site_id", ulid_field())
+            .property("type_id", ulid_field())
+            .property("slug", str_field())
+            .property("locale", str_field())
+            .property(
+                "status",
+                str_field().description(Some("draft | published | archived".to_string())),
+            )
+            .property("data", opaque_field("Field-keyed object of FieldValue."))
+            .property("author_id", ulid_field())
+            .property("created_at", rfc3339_field())
+            .property("updated_at", rfc3339_field())
+            .property("published_at", rfc3339_field())
+            .required("id")
+            .required("site_id")
+            .required("type_id")
+            .required("slug")
+            .required("locale")
+            .required("status")
+            .required("data")
+            .required("created_at")
+            .required("updated_at")
+            .build(),
+    )
+}
+
+fn content_patch_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .description(Some(
+                "Partial update — every field is optional and applies only when present.".to_string(),
+            ))
+            .property("slug", str_field())
+            .property("status", str_field())
+            .property("data", opaque_field("Field-keyed object of FieldValue."))
+            .build(),
+    )
+}
+
+fn content_version_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("content_id", ulid_field())
+            .property("site_id", ulid_field())
+            .property("type_id", ulid_field())
+            .property("slug", str_field())
+            .property("locale", str_field())
+            .property("status", str_field())
+            .property("data", opaque_field("Field-keyed snapshot."))
+            .property("author_id", ulid_field())
+            .property("captured_at", rfc3339_field())
+            .property("parent_version", ulid_field())
+            .required("id")
+            .required("content_id")
+            .required("captured_at")
+            .build(),
+    )
+}
+
+fn page_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .description(Some("Paginated list envelope.".to_string()))
+            .property(
+                "items",
+                opaque_field("Backend-typed list elements (varies per endpoint)."),
+            )
+            .property("total", int_field())
+            .property("page", int_field())
+            .property("per_page", int_field())
+            .required("items")
+            .required("total")
+            .required("page")
+            .required("per_page")
+            .build(),
+    )
+}
+
+fn user_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("email", str_field())
+            .property("handle", str_field())
+            .property("display_name", str_field())
+            .property("roles", Schema::Array(
+                ArrayBuilder::new()
+                    .items(RefOr::T(Schema::Object(ulid_field().build())))
+                    .build(),
+            ))
+            .property("active", bool_field())
+            .property("created_at", rfc3339_field())
+            .property("last_login", rfc3339_field())
+            .property("password_changed_at", rfc3339_field())
+            .required("id")
+            .required("email")
+            .required("handle")
+            .required("active")
+            .required("created_at")
+            .build(),
+    )
+}
+
+fn role_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("name", str_field())
+            .property("description", str_field())
+            .property(
+                "permissions",
+                opaque_field("Tagged union of Read/Write/Publish/ManageUsers/ManageSchema/Admin."),
+            )
+            .required("id")
+            .required("name")
+            .required("permissions")
+            .build(),
+    )
+}
+
+fn media_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("id", ulid_field())
+            .property("site_id", ulid_field())
+            .property("key", str_field())
+            .property("filename", str_field())
+            .property("mime", str_field())
+            .property("size", int_field())
+            .property("width", int_field())
+            .property("height", int_field())
+            .property("alt", str_field())
+            .property(
+                "kind",
+                str_field().description(Some("image|video|audio|document|other".to_string())),
+            )
+            .property("uploaded_by", ulid_field())
+            .property("created_at", rfc3339_field())
+            .required("id")
+            .required("site_id")
+            .required("key")
+            .required("filename")
+            .required("mime")
+            .required("size")
+            .required("kind")
+            .required("created_at")
+            .build(),
+    )
+}
+
+fn type_update_response_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("type", RefOr::Ref(Ref::from_schema_name("ContentType")))
+            .property(
+                "rows_migrated",
+                int_field().description(Some("Number of rows the schema migrator rewrote.".to_string())),
+            )
+            .property("changes", Schema::from(opaque_field("FieldChange[]")))
+            .required("type")
+            .required("rows_migrated")
+            .required("changes")
+            .build(),
+    )
+}
+
+#[allow(dead_code)]
+fn _unused_array(name: &str) -> Schema {
+    array_of(name)
 }
 
 trait PathItemExt: Sized {

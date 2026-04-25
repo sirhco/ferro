@@ -248,7 +248,10 @@ function setToast(msg, kind) {
 async function boot() {
   if (!getToken()) { renderLogin(); return; }
   try {
-    state.user = await api("GET", "/api/v1/auth/me");
+    const me = await api("GET", "/api/v1/auth/me");
+    // /me returns user + flat `totp_enabled` boolean.
+    state.user = me;
+    state.user.totp_enabled = !!me.totp_enabled;
   } catch (e) {
     setTokens(null, null);
     renderLogin();
@@ -273,6 +276,10 @@ function renderLogin() {
         email: email.value.trim(),
         password: pw.value,
       });
+      if (data && data.mfa_required) {
+        renderMfaPrompt(data.mfa_token);
+        return;
+      }
       setTokens(data.token, data.refresh_token || null);
       await boot();
     } catch (ex) {
@@ -298,6 +305,40 @@ function renderLogin() {
   const shell = h("div", { class: "login-shell" }, form);
   r.appendChild(shell);
   email.focus();
+}
+
+function renderMfaPrompt(mfaToken) {
+  const r = root(); clear(r);
+  const code = h("input", {
+    type: "text", inputmode: "numeric", maxlength: 6,
+    placeholder: "123456", autocomplete: "one-time-code", required: true,
+  });
+  const err = h("p", { class: "err", style: { marginTop: ".5rem" } });
+  const form = h("form", { class: "login-card", onsubmit: async (e) => {
+    e.preventDefault();
+    err.textContent = "";
+    try {
+      const data = await api("POST", "/api/v1/auth/totp/login", {
+        mfa_token: mfaToken,
+        code: code.value.trim(),
+      });
+      setTokens(data.token, data.refresh_token || null);
+      await boot();
+    } catch (ex) {
+      err.textContent = ex.message;
+    }
+  } },
+    h("h1", null, "Two-factor code"),
+    h("p", { class: "muted" }, "Enter the 6-digit code from your authenticator app."),
+    h("label", null, "Code", code),
+    h("p", { style: { marginTop: "1.25rem" } },
+      h("button", { class: "primary", type: "submit", style: { width: "100%" } }, "Verify")),
+    h("p", { style: { marginTop: ".75rem" } },
+      h("button", { class: "ghost", type: "button", onclick: () => renderLogin() }, "Cancel")),
+    err,
+  );
+  r.appendChild(h("div", { class: "login-shell" }, form));
+  code.focus();
 }
 
 // --- Main shell ------------------------------------------------------------
@@ -808,11 +849,93 @@ function renderSettings(view) {
     renderChangePasswordForm(),
   ));
   view.appendChild(h("div", { class: "card" },
+    h("h3", { style: { marginTop: 0 } }, "Two-factor authentication"),
+    renderTotpPanel(),
+  ));
+  view.appendChild(h("div", { class: "card" },
     h("h3", { style: { marginTop: 0 } }, "Session"),
     h("p", null, "Logged in as ", h("strong", null, state.user.email),
       ". Token stored in browser localStorage."),
     h("button", { class: "ghost", onclick: () => { logoutAndReset(); } }, "Log out"),
   ));
+}
+
+function renderTotpPanel() {
+  // /me doesn't expose totp_secret (redacted); sniff state via setup attempt.
+  const wrap = h("div");
+  const status = h("p");
+  if (state.user.totp_enabled) {
+    return renderTotpDisableForm(status, wrap);
+  }
+  // Render Setup button → flips into Enable form once secret is minted.
+  const setupBtn = h("button", { class: "primary", onclick: async () => {
+    status.className = "muted"; status.textContent = "Generating secret…";
+    try {
+      const r = await api("POST", "/api/v1/auth/totp/setup");
+      status.textContent = "";
+      wrap.replaceChildren(renderTotpEnableForm(r.secret, r.otpauth_uri, status));
+    } catch (ex) {
+      status.className = "err"; status.textContent = ex.message;
+      if (ex.status === 400 && /already enabled/i.test(ex.message)) {
+        // Server says it's already on; flip our local view.
+        state.user.totp_enabled = true;
+        wrap.replaceChildren(renderTotpDisableForm(status, wrap));
+      }
+    }
+  } }, "Set up TOTP");
+  wrap.append(
+    h("p", { class: "muted" }, "Time-based one-time passwords (Google Authenticator, 1Password, Authy)."),
+    setupBtn,
+    status,
+  );
+  return wrap;
+}
+
+function renderTotpEnableForm(secret, uri, status) {
+  const code = h("input", { type: "text", inputmode: "numeric", maxlength: 6, placeholder: "123456" });
+  const wrap = h("div");
+  wrap.append(
+    h("p", null,
+      "Scan with an authenticator app or paste the secret manually:"),
+    h("p", null, h("code", { style: { wordBreak: "break-all" } }, secret)),
+    h("details", null,
+      h("summary", null, "otpauth URI"),
+      h("pre", { style: { whiteSpace: "pre-wrap" } }, uri)),
+    h("label", null, "6-digit code from your app", code),
+    h("p", null,
+      h("button", { class: "primary", onclick: async () => {
+        status.className = "muted"; status.textContent = "Verifying…";
+        try {
+          await api("POST", "/api/v1/auth/totp/enable", { secret, code: code.value });
+          state.user.totp_enabled = true;
+          status.className = "ok"; status.textContent = "TOTP enabled. New logins now require a code.";
+          render();
+        } catch (ex) { status.className = "err"; status.textContent = ex.message; }
+      } }, "Enable"),
+      " ",
+      h("button", { class: "ghost", onclick: () => render() }, "Cancel"),
+    ),
+    status,
+  );
+  return wrap;
+}
+
+function renderTotpDisableForm(status, wrap) {
+  const code = h("input", { type: "text", inputmode: "numeric", maxlength: 6, placeholder: "123456" });
+  return h("div", null,
+    h("p", { class: "ok" }, "TOTP is enabled."),
+    h("label", null, "Enter a current 6-digit code to disable", code),
+    h("p", null, h("button", { class: "danger", onclick: async () => {
+      status.className = "muted"; status.textContent = "Disabling…";
+      try {
+        await api("POST", "/api/v1/auth/totp/disable", { code: code.value });
+        state.user.totp_enabled = false;
+        status.className = "ok"; status.textContent = "TOTP disabled.";
+        render();
+      } catch (ex) { status.className = "err"; status.textContent = ex.message; }
+    } }, "Disable")),
+    status,
+  );
 }
 
 function renderChangePasswordForm() {

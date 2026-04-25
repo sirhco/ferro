@@ -509,8 +509,22 @@ async fn logout(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn me(auth: AuthUser) -> Json<User> {
-    Json(auth.user.redacted())
+#[derive(Debug, Serialize)]
+struct MeResponse {
+    #[serde(flatten)]
+    user: User,
+    /// Convenience boolean derived from `totp_secret.is_some()` so clients can
+    /// gate UI without ever seeing the secret itself (it's redacted from the
+    /// flattened user above).
+    totp_enabled: bool,
+}
+
+async fn me(auth: AuthUser) -> Json<MeResponse> {
+    let totp_enabled = auth.user.totp_secret.is_some();
+    Json(MeResponse {
+        user: auth.user.redacted(),
+        totp_enabled,
+    })
 }
 
 #[derive(Debug, Deserialize)]

@@ -50,11 +50,14 @@ impl User {
         self.active
     }
 
-    /// Drop secrets that must never leave the API boundary (currently just
-    /// the password hash). Call this on every code path that returns a
-    /// `User` to a client — REST handlers, GraphQL resolvers, export bundles.
+    /// Drop secrets that must never leave the API boundary — the password
+    /// hash and the TOTP secret. Call this on every code path that returns a
+    /// `User` to a client (REST handlers, GraphQL resolvers, export bundles).
+    /// Callers that need to convey "TOTP is on" should attach a separate
+    /// boolean flag rather than leaking the secret.
     pub fn redact_secrets(&mut self) {
         self.password_hash = None;
+        self.totp_secret = None;
     }
 
     /// Convenience: return a redacted clone.
