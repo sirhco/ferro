@@ -109,6 +109,7 @@ async fn seed_user(
         created_at: OffsetDateTime::now_utc(),
         last_login: None,
         password_changed_at: None,
+        totp_secret: None,
     };
     repo.users().upsert(user.clone()).await.unwrap();
     // Re-write directly to disk to preserve the password_hash field

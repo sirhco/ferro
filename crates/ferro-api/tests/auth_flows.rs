@@ -439,6 +439,7 @@ async fn seed_user(tmp: &tempfile::TempDir, state: &Arc<AppState>, email: &str, 
         created_at: OffsetDateTime::now_utc(),
         last_login: None,
         password_changed_at: None,
+        totp_secret: None,
     };
     state.repo.users().upsert(user.clone()).await.unwrap();
     // Belt-and-braces: also write the JSON manually so older tests that

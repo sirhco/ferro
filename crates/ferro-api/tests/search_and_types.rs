@@ -117,6 +117,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<AppState>, Site, ContentType) {
         created_at: OffsetDateTime::now_utc(),
         last_login: None,
         password_changed_at: None,
+        totp_secret: None,
     };
     repo.users().upsert(user).await.unwrap();
 

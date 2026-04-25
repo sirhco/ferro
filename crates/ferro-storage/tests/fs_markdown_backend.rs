@@ -162,6 +162,7 @@ async fn user_role_round_trip() {
         created_at: OffsetDateTime::now_utc(),
         last_login: None,
         password_changed_at: None,
+        totp_secret: None,
     };
     repo.users().upsert(user.clone()).await.unwrap();
     let by_email = repo.users().by_email("v@example.com").await.unwrap().unwrap();

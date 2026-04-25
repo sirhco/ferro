@@ -195,6 +195,7 @@ fn row_to_user(row: &sqlx::postgres::PgRow) -> StorageResult<User> {
         password_changed_at: row
             .try_get::<Option<time::OffsetDateTime>, _>("password_changed_at")
             .unwrap_or(None),
+        totp_secret: row.try_get::<Option<String>, _>("totp_secret").unwrap_or(None),
     })
 }
 
@@ -745,8 +746,9 @@ impl UserRepo for PgRepo {
         sqlx::query(
             r#"
             INSERT INTO users (id, email, handle, display_name, password_hash, roles,
-                               active, created_at, last_login, password_changed_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                               active, created_at, last_login, password_changed_at,
+                               totp_secret)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (id) DO UPDATE SET
                 email = EXCLUDED.email,
                 handle = EXCLUDED.handle,
@@ -755,7 +757,8 @@ impl UserRepo for PgRepo {
                 roles = EXCLUDED.roles,
                 active = EXCLUDED.active,
                 last_login = EXCLUDED.last_login,
-                password_changed_at = EXCLUDED.password_changed_at
+                password_changed_at = EXCLUDED.password_changed_at,
+                totp_secret = EXCLUDED.totp_secret
             "#,
         )
         .bind(user.id.to_string())
@@ -768,6 +771,7 @@ impl UserRepo for PgRepo {
         .bind(user.created_at)
         .bind(user.last_login)
         .bind(user.password_changed_at)
+        .bind(&user.totp_secret)
         .execute(&self.pool)
         .await
         .map_err(map_sqlx)?;

@@ -33,6 +33,10 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/v1/auth/me", get(me))
         .route("/api/v1/auth/signup", post(signup))
         .route("/api/v1/auth/change-password", post(change_password))
+        .route("/api/v1/auth/totp/setup", post(totp_setup))
+        .route("/api/v1/auth/totp/enable", post(totp_enable))
+        .route("/api/v1/auth/totp/disable", post(totp_disable))
+        .route("/api/v1/auth/totp/login", post(totp_login))
         .route("/api/v1/sites", get(list_sites))
         .route(
             "/api/v1/content/{type_slug}",
@@ -235,6 +239,15 @@ struct LoginBody {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(untagged)]
+enum AuthResponse {
+    Tokens(LoginResponse),
+    /// Caller has TOTP enabled; redeem `mfa_token` + 6-digit code at
+    /// `/api/v1/auth/totp/login` to get real tokens.
+    Mfa(MfaChallenge),
+}
+
+#[derive(Debug, Serialize)]
 struct LoginResponse {
     /// Short-lived bearer JWT (default 12h).
     token: String,
@@ -245,18 +258,51 @@ struct LoginResponse {
     user: User,
 }
 
+#[derive(Debug, Serialize)]
+struct MfaChallenge {
+    mfa_required: bool,
+    /// Opaque token (5-minute lifetime) the client redeems with the TOTP
+    /// code. Stored in the session store under a `mfa:` prefix to keep it
+    /// distinct from refresh tokens.
+    mfa_token: String,
+}
+
 const JWT_TTL_SECS: i64 = 60 * 60 * 12; // 12 hours
 const REFRESH_TTL: time::Duration = time::Duration::days(30);
+const MFA_TTL_SECS: i64 = 300; // 5 minutes
+const MFA_PREFIX: &str = "mfa:";
 
 async fn login(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(body): Json<LoginBody>,
-) -> ApiResult<Json<LoginResponse>> {
+) -> ApiResult<Json<AuthResponse>> {
     enforce_auth_rate(&state, &headers)?;
     let (user, _session) = state.auth.login(&body.email, &body.password, None, None).await?;
+    if user.totp_secret.is_some() {
+        let mfa_token = mint_mfa_challenge(&state, &user).await?;
+        return Ok(Json(AuthResponse::Mfa(MfaChallenge {
+            mfa_required: true,
+            mfa_token,
+        })));
+    }
     let resp = mint_login(&state, user).await?;
-    Ok(Json(resp))
+    Ok(Json(AuthResponse::Tokens(resp)))
+}
+
+async fn mint_mfa_challenge(state: &AppState, user: &User) -> ApiResult<String> {
+    let now = time::OffsetDateTime::now_utc();
+    let token = format!("{MFA_PREFIX}{}", ferro_auth::session::new_token());
+    let session = ferro_auth::Session {
+        token: token.clone(),
+        user_id: user.id,
+        created_at: now,
+        expires_at: now + time::Duration::seconds(MFA_TTL_SECS),
+        ip: None,
+        user_agent: None,
+    };
+    state.auth.sessions.put(session).await.map_err(ApiError::Auth)?;
+    Ok(token)
 }
 
 #[derive(Debug, Deserialize)]
@@ -322,6 +368,123 @@ async fn mint_login(state: &AppState, user: User) -> ApiResult<LoginResponse> {
     })
 }
 
+// --- TOTP / 2FA ------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+struct TotpSetupResponse {
+    /// Base32 secret. Display once during enrollment — losing it locks the
+    /// user out of TOTP without admin reset.
+    secret: String,
+    /// `otpauth://totp/...` URI; render as a QR code for authenticator apps.
+    otpauth_uri: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TotpEnableBody {
+    secret: String,
+    code: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TotpDisableBody {
+    code: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TotpLoginBody {
+    mfa_token: String,
+    code: String,
+}
+
+/// Mint a fresh secret for the calling user. Doesn't persist anything — the
+/// caller must call `/auth/totp/enable` with the secret + a verifying code to
+/// commit. This two-step keeps the user from locking themselves out by
+/// generating a secret they can't actually scan.
+async fn totp_setup(auth: AuthUser) -> ApiResult<Json<TotpSetupResponse>> {
+    if auth.user.totp_secret.is_some() {
+        return Err(ApiError::BadRequest(
+            "TOTP already enabled; disable first to rotate".into(),
+        ));
+    }
+    let secret = ferro_auth::totp::generate_secret();
+    let uri = ferro_auth::totp::otpauth_uri(&secret, &auth.user.email, "Ferro");
+    Ok(Json(TotpSetupResponse { secret, otpauth_uri: uri }))
+}
+
+async fn totp_enable(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(body): Json<TotpEnableBody>,
+) -> ApiResult<StatusCode> {
+    if !ferro_auth::totp::verify(&body.secret, &body.code, time::OffsetDateTime::now_utc()) {
+        return Err(ApiError::BadRequest("invalid TOTP code".into()));
+    }
+    let mut user = state
+        .repo
+        .users()
+        .get(auth.user.id)
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+    user.totp_secret = Some(body.secret);
+    state.repo.users().upsert(user).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn totp_disable(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(body): Json<TotpDisableBody>,
+) -> ApiResult<StatusCode> {
+    let secret = auth
+        .user
+        .totp_secret
+        .as_deref()
+        .ok_or_else(|| ApiError::BadRequest("TOTP not enabled".into()))?;
+    if !ferro_auth::totp::verify(secret, &body.code, time::OffsetDateTime::now_utc()) {
+        return Err(ApiError::BadRequest("invalid TOTP code".into()));
+    }
+    let mut user = state
+        .repo
+        .users()
+        .get(auth.user.id)
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+    user.totp_secret = None;
+    state.repo.users().upsert(user).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Step 2 of TOTP login. Caller already has email+password (verified via
+/// `/login` which returned an `mfa_token`); this endpoint exchanges the
+/// challenge token + 6-digit code for a real token pair.
+async fn totp_login(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<TotpLoginBody>,
+) -> ApiResult<Json<LoginResponse>> {
+    enforce_auth_rate(&state, &headers)?;
+    if !body.mfa_token.starts_with(MFA_PREFIX) {
+        return Err(ApiError::Unauthorized);
+    }
+    let (session, user) = state
+        .auth
+        .resolve_session(&body.mfa_token)
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    // One-shot: invalidate the challenge regardless of code outcome to deny
+    // brute-force on the same token.
+    let _ = state.auth.logout(&session.token).await;
+    let secret = user
+        .totp_secret
+        .as_deref()
+        .ok_or(ApiError::Unauthorized)?;
+    if !ferro_auth::totp::verify(secret, &body.code, time::OffsetDateTime::now_utc()) {
+        return Err(ApiError::Unauthorized);
+    }
+    let resp = mint_login(&state, user).await?;
+    Ok(Json(resp))
+}
+
 #[derive(Debug, Deserialize, Default)]
 struct LogoutBody {
     /// Optional refresh token to revoke. When present the server-side session
@@ -366,7 +529,7 @@ async fn signup(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(body): Json<SignupBody>,
-) -> ApiResult<Json<LoginResponse>> {
+) -> ApiResult<Json<AuthResponse>> {
     enforce_auth_rate(&state, &headers)?;
     if !state.options.allow_public_signup {
         return Err(ApiError::Forbidden(
@@ -392,10 +555,11 @@ async fn signup(
         created_at: time::OffsetDateTime::now_utc(),
         last_login: None,
         password_changed_at: None,
+        totp_secret: None,
     };
     let saved = state.repo.users().upsert(user).await?;
     let resp = mint_login(&state, saved).await?;
-    Ok(Json(resp))
+    Ok(Json(AuthResponse::Tokens(resp)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -725,6 +889,7 @@ async fn create_user(
         created_at: time::OffsetDateTime::now_utc(),
         last_login: None,
         password_changed_at: None,
+        totp_secret: None,
     };
     Ok(Json(state.repo.users().upsert(user).await?.redacted()))
 }

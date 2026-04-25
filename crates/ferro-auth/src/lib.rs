@@ -8,6 +8,7 @@ pub mod password;
 pub mod policy;
 pub mod service;
 pub mod session;
+pub mod totp;
 
 pub use error::{AuthError, AuthResult};
 pub use jwt::{JwtClaims, JwtManager};

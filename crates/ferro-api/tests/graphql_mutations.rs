@@ -103,6 +103,7 @@ async fn fixture() -> Fixture {
         created_at: now,
         last_login: None,
         password_changed_at: None,
+        totp_secret: None,
     };
     // `User.password_hash` is `#[serde(skip_serializing)]`; write JSON directly
     // so the fs-json backend preserves the hash across reload.

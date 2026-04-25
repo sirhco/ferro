@@ -36,6 +36,12 @@ pub struct User {
     /// without a stateful denylist.
     #[serde(with = "time::serde::rfc3339::option", default)]
     pub password_changed_at: Option<OffsetDateTime>,
+    /// Base32-encoded TOTP secret. When present, login becomes a two-step
+    /// flow: email+password returns an `mfa_token`, which the client redeems
+    /// at `/api/v1/auth/totp/login` along with the 6-digit authenticator
+    /// code. `None` ⇒ MFA disabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totp_secret: Option<String>,
 }
 
 impl User {
