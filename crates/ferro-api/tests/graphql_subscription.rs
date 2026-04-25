@@ -137,6 +137,8 @@ async fn graphql_subscription_emits_content_created() {
     let app = ferro_api::router(state.clone());
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
+    let token = login_token(&base_http).await;
+
     // Connect WS with the graphql-transport-ws subprotocol.
     let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
     req.headers_mut().insert(
@@ -145,10 +147,14 @@ async fn graphql_subscription_emits_content_created() {
     );
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
 
-    // Handshake
-    ws.send(Message::Text(json!({ "type": "connection_init", "payload": {} }).to_string().into()))
-        .await
-        .unwrap();
+    // Handshake — token goes in connection_init payload (graphql-transport-ws auth convention).
+    ws.send(Message::Text(
+        json!({ "type": "connection_init", "payload": { "token": token } })
+            .to_string()
+            .into(),
+    ))
+    .await
+    .unwrap();
     let ack = next_text(&mut ws).await;
     assert_eq!(ack["type"], "connection_ack", "got: {ack}");
 
@@ -165,8 +171,7 @@ async fn graphql_subscription_emits_content_created() {
     // Give the broadcast subscriber a tick to register before we fire.
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    // Fire content create over REST.
-    let token = login_token(&base_http).await;
+    // Fire content create over REST. Reuse the JWT minted during the WS handshake.
     let body = NewContent {
         type_id: ty.id,
         slug: "alpha".into(),
@@ -205,6 +210,116 @@ async fn graphql_subscription_emits_content_created() {
     assert!(got, "did not observe content.created via subscription");
 
     let _ = ws.close(None).await;
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn graphql_subscription_rejects_missing_token() {
+    let (_tmp, state, _ty) = fixture().await;
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = ferro_api::router(state);
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
+    req.headers_mut().insert(
+        "Sec-WebSocket-Protocol",
+        "graphql-transport-ws".parse().unwrap(),
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
+
+    ws.send(Message::Text(
+        json!({ "type": "connection_init", "payload": {} }).to_string().into(),
+    ))
+    .await
+    .unwrap();
+
+    // The server should refuse the handshake — either via a `connection_error`
+    // frame or by closing the socket with a 4xxx code.
+    let mut rejected = false;
+    for _ in 0..5 {
+        match tokio::time::timeout(Duration::from_millis(500), ws.next()).await {
+            Ok(Some(Ok(Message::Close(_)))) => {
+                rejected = true;
+                break;
+            }
+            Ok(Some(Ok(Message::Text(t)))) => {
+                let v: Value = serde_json::from_str(&t).unwrap();
+                if v["type"] == "connection_error" {
+                    rejected = true;
+                    break;
+                }
+                if v["type"] == "connection_ack" {
+                    panic!("server accepted unauthenticated subscription: {v}");
+                }
+            }
+            Ok(Some(Ok(_))) => continue,
+            Ok(Some(Err(_))) | Ok(None) => {
+                rejected = true;
+                break;
+            }
+            Err(_) => continue,
+        }
+    }
+    assert!(rejected, "expected handshake to fail without token");
+
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn graphql_subscription_rejects_invalid_token() {
+    let (_tmp, state, _ty) = fixture().await;
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let app = ferro_api::router(state);
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
+    req.headers_mut().insert(
+        "Sec-WebSocket-Protocol",
+        "graphql-transport-ws".parse().unwrap(),
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
+
+    ws.send(Message::Text(
+        json!({ "type": "connection_init", "payload": { "token": "garbage" } })
+            .to_string()
+            .into(),
+    ))
+    .await
+    .unwrap();
+
+    let mut rejected = false;
+    for _ in 0..5 {
+        match tokio::time::timeout(Duration::from_millis(500), ws.next()).await {
+            Ok(Some(Ok(Message::Close(_)))) => {
+                rejected = true;
+                break;
+            }
+            Ok(Some(Ok(Message::Text(t)))) => {
+                let v: Value = serde_json::from_str(&t).unwrap();
+                if v["type"] == "connection_error" {
+                    rejected = true;
+                    break;
+                }
+                if v["type"] == "connection_ack" {
+                    panic!("server accepted bogus token: {v}");
+                }
+            }
+            Ok(Some(Ok(_))) => continue,
+            Ok(Some(Err(_))) | Ok(None) => {
+                rejected = true;
+                break;
+            }
+            Err(_) => continue,
+        }
+    }
+    assert!(rejected, "expected handshake to fail with invalid token");
+
     server.abort();
     let _ = server.await;
 }

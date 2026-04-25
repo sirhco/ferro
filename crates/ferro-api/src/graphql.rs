@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_graphql::http::GraphiQLSource;
 use async_graphql::{Context, InputObject, Object, Schema, Subscription};
-use async_graphql_axum::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::{Html, IntoResponse};
@@ -115,6 +115,7 @@ pub struct ContentEventNode {
     kind: &'static str,
     content_id: Option<String>,
     type_id: Option<String>,
+    type_slug: Option<String>,
     site_id: Option<String>,
     slug: Option<String>,
     status: Option<String>,
@@ -131,6 +132,9 @@ impl ContentEventNode {
     }
     async fn type_id(&self) -> Option<&str> {
         self.type_id.as_deref()
+    }
+    async fn type_slug(&self) -> Option<&str> {
+        self.type_slug.as_deref()
     }
     async fn site_id(&self) -> Option<&str> {
         self.site_id.as_deref()
@@ -149,46 +153,63 @@ impl ContentEventNode {
 impl From<&HookEvent> for ContentEventNode {
     fn from(evt: &HookEvent) -> Self {
         match evt {
-            HookEvent::ContentCreated { content } => Self {
+            HookEvent::ContentCreated { content, type_slug } => Self {
                 kind: "content.created",
                 content_id: Some(content.id.to_string()),
                 type_id: Some(content.type_id.to_string()),
+                type_slug: type_slug.clone(),
                 site_id: Some(content.site_id.to_string()),
                 slug: Some(content.slug.clone()),
                 status: Some(format!("{:?}", content.status).to_lowercase()),
                 rows_migrated: None,
             },
-            HookEvent::ContentUpdated { after, .. } => Self {
+            HookEvent::ContentUpdated { after, type_slug, .. } => Self {
                 kind: "content.updated",
                 content_id: Some(after.id.to_string()),
                 type_id: Some(after.type_id.to_string()),
+                type_slug: type_slug.clone(),
                 site_id: Some(after.site_id.to_string()),
                 slug: Some(after.slug.clone()),
                 status: Some(format!("{:?}", after.status).to_lowercase()),
                 rows_migrated: None,
             },
-            HookEvent::ContentPublished { content } => Self {
+            HookEvent::ContentPublished { content, type_slug } => Self {
                 kind: "content.published",
                 content_id: Some(content.id.to_string()),
                 type_id: Some(content.type_id.to_string()),
+                type_slug: type_slug.clone(),
                 site_id: Some(content.site_id.to_string()),
                 slug: Some(content.slug.clone()),
                 status: Some(format!("{:?}", content.status).to_lowercase()),
                 rows_migrated: None,
             },
-            HookEvent::ContentDeleted { site_id, type_id, content_id, slug } => Self {
+            HookEvent::ContentDeleted {
+                site_id,
+                type_id,
+                content_id,
+                slug,
+                type_slug,
+            } => Self {
                 kind: "content.deleted",
                 content_id: Some(content_id.to_string()),
                 type_id: Some(type_id.to_string()),
+                type_slug: type_slug.clone(),
                 site_id: Some(site_id.to_string()),
                 slug: Some(slug.clone()),
                 status: None,
                 rows_migrated: None,
             },
-            HookEvent::TypeMigrated { site_id, type_id, rows_migrated, .. } => Self {
+            HookEvent::TypeMigrated {
+                site_id,
+                type_id,
+                type_slug,
+                rows_migrated,
+                ..
+            } => Self {
                 kind: "type.migrated",
                 content_id: None,
                 type_id: Some(type_id.to_string()),
+                type_slug: type_slug.clone(),
                 site_id: Some(site_id.to_string()),
                 slug: None,
                 status: None,
@@ -198,6 +219,7 @@ impl From<&HookEvent> for ContentEventNode {
                 kind: "event",
                 content_id: None,
                 type_id: None,
+                type_slug: None,
                 site_id: None,
                 slug: None,
                 status: None,
@@ -304,7 +326,10 @@ impl Mutation {
         let created = state.repo.content().create(site.id, new).await?;
         state
             .hooks
-            .dispatch(HookEvent::ContentCreated { content: created.clone() })
+            .dispatch(HookEvent::ContentCreated {
+                content: created.clone(),
+                type_slug: Some(ty.slug.clone()),
+            })
             .await;
         Ok(ContentNode(created))
     }
@@ -335,6 +360,7 @@ impl Mutation {
             .dispatch(HookEvent::ContentUpdated {
                 before: Box::new(before),
                 after: Box::new(after.clone()),
+                type_slug: Some(ty.slug.clone()),
             })
             .await;
         Ok(ContentNode(after))
@@ -354,7 +380,10 @@ impl Mutation {
         let published = state.repo.content().publish(content.id).await?;
         state
             .hooks
-            .dispatch(HookEvent::ContentPublished { content: published.clone() })
+            .dispatch(HookEvent::ContentPublished {
+                content: published.clone(),
+                type_slug: Some(ty.slug.clone()),
+            })
             .await;
         Ok(ContentNode(published))
     }
@@ -377,6 +406,7 @@ impl Mutation {
                 type_id: ty.id,
                 content_id: content.id,
                 slug: content.slug,
+                type_slug: Some(ty.slug.clone()),
             })
             .await;
         Ok(true)
@@ -440,24 +470,93 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/graphql/ws", get(subscription_handler))
 }
 
-/// WebSocket entrypoint for GraphQL subscriptions. We rebuild a per-request
-/// schema so each connection's subscriber gets a fresh broadcast receiver
-/// (subscribers can't be cloned across requests). The `GraphQLSubscription`
-/// service speaks both `graphql-ws` and `graphql-transport-ws` protocols.
+/// WebSocket entrypoint for GraphQL subscriptions.
+///
+/// Auth: the standard `graphql-ws` / `graphql-transport-ws` `connection_init`
+/// payload must include a JWT under `token` (we also accept `authToken` and
+/// `Authorization: Bearer ...` for client compatibility). Connections without
+/// a valid token are rejected before any subscribe message is processed.
+///
+/// Each connection rebuilds the schema so its broadcast receiver is fresh.
 async fn subscription_handler(
     State(state): State<Arc<AppState>>,
     ws: axum::extract::WebSocketUpgrade,
     proto: async_graphql_axum::GraphQLProtocol,
 ) -> impl IntoResponse {
-    let schema = schema(state);
+    let schema = schema(state.clone());
     ws.protocols(async_graphql::http::ALL_WEBSOCKET_PROTOCOLS).on_upgrade(move |socket| {
-        async_graphql_axum::GraphQLWebSocket::new(socket, schema, proto).serve()
+        let state = state.clone();
+        async move {
+            async_graphql_axum::GraphQLWebSocket::new(socket, schema, proto)
+                .on_connection_init(move |payload| {
+                    let state = state.clone();
+                    async move {
+                        let auth = authenticate_init(&state, &payload).await?;
+                        let mut data = async_graphql::Data::default();
+                        data.insert(auth);
+                        Ok(data)
+                    }
+                })
+                .serve()
+                .await
+        }
     })
 }
 
-#[allow(dead_code)]
-fn _service_check<E: async_graphql::Executor>(e: E) -> GraphQLSubscription<E> {
-    GraphQLSubscription::new(e)
+/// Pull a JWT out of the `connection_init` payload and resolve it to an
+/// [`AuthUser`]. Looks at `token`, `authToken`, and `Authorization: Bearer ...`
+/// in that order to match common client conventions.
+async fn authenticate_init(
+    state: &AppState,
+    payload: &serde_json::Value,
+) -> async_graphql::Result<AuthUser> {
+    let token = extract_token(payload).ok_or_else(|| async_graphql::Error::new("missing token"))?;
+    let claims = state
+        .jwt
+        .verify(&token)
+        .map_err(|_| async_graphql::Error::new("invalid token"))?;
+    let user_id = claims
+        .user_id()
+        .map_err(|_| async_graphql::Error::new("invalid token"))?;
+    let user = state
+        .repo
+        .users()
+        .get(user_id)
+        .await
+        .map_err(|e| async_graphql::Error::new(e.to_string()))?
+        .ok_or_else(|| async_graphql::Error::new("unknown user"))?;
+    if !user.active {
+        return Err(async_graphql::Error::new("account disabled"));
+    }
+    let mut roles = Vec::with_capacity(user.roles.len());
+    for id in &user.roles {
+        if let Some(r) = state
+            .repo
+            .users()
+            .get_role(*id)
+            .await
+            .map_err(|e| async_graphql::Error::new(e.to_string()))?
+        {
+            roles.push(r);
+        }
+    }
+    let ctx = ferro_auth::AuthContext { user_id: user.id, roles };
+    Ok(AuthUser { user, claims, ctx })
+}
+
+fn extract_token(payload: &serde_json::Value) -> Option<String> {
+    if let Some(t) = payload.get("token").and_then(|v| v.as_str()) {
+        return Some(t.to_string());
+    }
+    if let Some(t) = payload.get("authToken").and_then(|v| v.as_str()) {
+        return Some(t.to_string());
+    }
+    if let Some(auth) = payload.get("Authorization").and_then(|v| v.as_str()) {
+        if let Some(rest) = auth.strip_prefix("Bearer ").or_else(|| auth.strip_prefix("bearer ")) {
+            return Some(rest.trim().to_string());
+        }
+    }
+    None
 }
 
 async fn graphql_handler(

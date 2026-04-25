@@ -106,7 +106,13 @@ async fn create_content(
     require_write(&auth.ctx, ty.id)?;
     body.validate(&ty)?;
     let created = state.repo.content().create(site.id, body).await?;
-    state.hooks.dispatch(HookEvent::ContentCreated { content: created.clone() }).await;
+    state
+        .hooks
+        .dispatch(HookEvent::ContentCreated {
+            content: created.clone(),
+            type_slug: Some(ty.slug.clone()),
+        })
+        .await;
     Ok(Json(created))
 }
 
@@ -126,6 +132,7 @@ async fn update_content(
         .dispatch(HookEvent::ContentUpdated {
             before: Box::new(before),
             after: Box::new(after.clone()),
+            type_slug: Some(ty.slug.clone()),
         })
         .await;
     Ok(Json(after))
@@ -146,6 +153,7 @@ async fn delete_content(
             type_id: ty.id,
             content_id: content.id,
             slug: content.slug,
+            type_slug: Some(ty.slug.clone()),
         })
         .await;
     Ok(StatusCode::NO_CONTENT)
@@ -162,7 +170,10 @@ async fn publish_content(
     let published = state.repo.content().publish(content.id).await?;
     state
         .hooks
-        .dispatch(HookEvent::ContentPublished { content: published.clone() })
+        .dispatch(HookEvent::ContentPublished {
+            content: published.clone(),
+            type_slug: Some(ty.slug.clone()),
+        })
         .await;
     Ok(Json(published))
 }
@@ -303,6 +314,7 @@ async fn update_type(
         .dispatch(HookEvent::TypeMigrated {
             site_id: site.id,
             type_id: saved.id,
+            type_slug: Some(saved.slug.clone()),
             rows_migrated,
             changes: changes.clone(),
         })

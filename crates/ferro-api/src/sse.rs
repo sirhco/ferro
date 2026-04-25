@@ -106,20 +106,12 @@ fn event_kind(evt: &HookEvent) -> &'static str {
 }
 
 /// Decide whether `evt` should reach a subscriber filtered by `type_slug`.
-/// Without a filter, every event passes through. We currently can't resolve
-/// a `ContentTypeId` back to its slug from inside the SSE pipeline without
-/// hitting the repo per event, so the filter inspects payload identifiers
-/// where the slug is directly available on the event.
+/// Without a filter, every event passes through. With a filter set, only
+/// events whose `type_slug` matches are forwarded; events that don't carry
+/// a slug (a small minority) are dropped to keep the contract crisp.
 fn event_matches(evt: &HookEvent, type_slug: Option<&str>) -> bool {
-    let Some(_filter) = type_slug else {
-        return true;
-    };
-    // For now: when a filter is set, only `ContentDeleted` carries an explicit
-    // slug; the others carry full `Content` whose `type_id` we'd need to
-    // resolve. Until we plumb a (type_id → slug) cache through the registry,
-    // pass everything to filtered clients and let them filter client-side.
-    // This keeps the wire contract simple — clients still get a typed
-    // `event:` field they can match on.
-    let _ = evt;
-    true
+    match type_slug {
+        None => true,
+        Some(want) => evt.type_slug() == Some(want),
+    }
 }

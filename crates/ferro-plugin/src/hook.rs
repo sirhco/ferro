@@ -28,32 +28,52 @@ const BUS_CAPACITY: usize = 256;
 /// Discrete events emitted by the storage / API layer. New variants are added
 /// by appending — handlers should treat unknown variants as no-ops via the
 /// non-exhaustive marker.
+///
+/// Every content-bearing variant carries `type_slug` so subscribers can filter
+/// without a repo round-trip. The slug is `None` only when the dispatcher
+/// couldn't resolve it (typically because the type was deleted before the
+/// event fired).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HookEvent {
-    /// A new content row was successfully created.
-    ContentCreated { content: Content },
-    /// An existing content row was updated. `before` / `after` capture the
-    /// observable change so handlers can diff field-by-field.
-    ContentUpdated { before: Box<Content>, after: Box<Content> },
-    /// A content row transitioned to `Status::Published`.
-    ContentPublished { content: Content },
-    /// A content row was deleted. Carries identity only — body is gone.
+    ContentCreated { content: Content, type_slug: Option<String> },
+    ContentUpdated {
+        before: Box<Content>,
+        after: Box<Content>,
+        type_slug: Option<String>,
+    },
+    ContentPublished { content: Content, type_slug: Option<String> },
     ContentDeleted {
         site_id: SiteId,
         type_id: ContentTypeId,
         content_id: ContentId,
         slug: String,
+        type_slug: Option<String>,
     },
-    /// A content type's schema changed and the migrator finished applying
-    /// `changes` to existing rows.
     TypeMigrated {
         site_id: SiteId,
         type_id: ContentTypeId,
+        type_slug: Option<String>,
         rows_migrated: u64,
         changes: Vec<FieldChange>,
     },
+}
+
+impl HookEvent {
+    /// Return the content-type slug associated with this event, when one
+    /// applies. Used by subscribers (REST SSE, GraphQL subscription) to filter
+    /// by type without resolving `type_id` against the repo.
+    #[must_use]
+    pub fn type_slug(&self) -> Option<&str> {
+        match self {
+            Self::ContentCreated { type_slug, .. }
+            | Self::ContentUpdated { type_slug, .. }
+            | Self::ContentPublished { type_slug, .. }
+            | Self::ContentDeleted { type_slug, .. }
+            | Self::TypeMigrated { type_slug, .. } => type_slug.as_deref(),
+        }
+    }
 }
 
 #[async_trait]
@@ -141,7 +161,7 @@ pub struct LoggingHook;
 impl HookHandler for LoggingHook {
     async fn handle(&self, event: &HookEvent) -> PluginResult<()> {
         match event {
-            HookEvent::ContentCreated { content } => {
+            HookEvent::ContentCreated { content, .. } => {
                 tracing::info!(
                     target: "ferro::hook",
                     content_id = %content.id,
@@ -157,7 +177,7 @@ impl HookHandler for LoggingHook {
                     "content updated"
                 );
             }
-            HookEvent::ContentPublished { content } => {
+            HookEvent::ContentPublished { content, .. } => {
                 tracing::info!(
                     target: "ferro::hook",
                     content_id = %content.id,
@@ -222,6 +242,7 @@ mod tests {
             type_id: ferro_core::ContentTypeId::new(),
             content_id: ContentId::new(),
             slug: "x".into(),
+            type_slug: Some("post".into()),
         };
         reg.dispatch(evt).await;
         assert_eq!(*h.count.lock().await, 1);
@@ -250,7 +271,20 @@ mod tests {
             type_id: ferro_core::ContentTypeId::new(),
             content_id: ContentId::new(),
             slug: "x".into(),
+            type_slug: Some("post".into()),
         })
         .await;
+    }
+
+    #[test]
+    fn type_slug_helper_returns_field() {
+        let evt = HookEvent::ContentDeleted {
+            site_id: ferro_core::SiteId::new(),
+            type_id: ferro_core::ContentTypeId::new(),
+            content_id: ContentId::new(),
+            slug: "x".into(),
+            type_slug: Some("post".into()),
+        };
+        assert_eq!(evt.type_slug(), Some("post"));
     }
 }
