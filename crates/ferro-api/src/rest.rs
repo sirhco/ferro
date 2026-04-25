@@ -4,7 +4,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use ferro_auth::{authorize, hash_password, AuthContext};
+use ferro_auth::{authorize, hash_password, verify_password, AuthContext};
 use ferro_core::{
     Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, NewContent, Page,
     Permission, Role, RoleId, Scope, Site, User, UserId,
@@ -24,6 +24,8 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/logout", post(logout))
         .route("/api/v1/auth/me", get(me))
+        .route("/api/v1/auth/signup", post(signup))
+        .route("/api/v1/auth/change-password", post(change_password))
         .route("/api/v1/sites", get(list_sites))
         .route(
             "/api/v1/content/{type_slug}",
@@ -223,6 +225,93 @@ async fn logout(State(_state): State<Arc<AppState>>, _auth: AuthUser) -> ApiResu
 
 async fn me(auth: AuthUser) -> Json<User> {
     Json(auth.user.redacted())
+}
+
+#[derive(Debug, Deserialize)]
+struct SignupBody {
+    email: String,
+    handle: String,
+    password: String,
+    #[serde(default)]
+    display_name: Option<String>,
+}
+
+/// Public signup. Gated by `auth.allow_public_signup` in `ferro.toml`. New
+/// users land active with **no roles** — operators must promote them via
+/// `PATCH /api/v1/users/{id}` if they need any permissions.
+async fn signup(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SignupBody>,
+) -> ApiResult<Json<LoginResponse>> {
+    if !state.options.allow_public_signup {
+        return Err(ApiError::Forbidden(
+            "public signup disabled; set auth.allow_public_signup = true".into(),
+        ));
+    }
+    if body.password.len() < 8 {
+        return Err(ApiError::BadRequest(
+            "password must be at least 8 characters".into(),
+        ));
+    }
+    if state.repo.users().by_email(&body.email).await?.is_some() {
+        return Err(ApiError::BadRequest("email already in use".into()));
+    }
+    let user = User {
+        id: UserId::new(),
+        email: body.email,
+        handle: body.handle,
+        display_name: body.display_name,
+        password_hash: Some(hash_password(&body.password).map_err(ApiError::Auth)?),
+        roles: Vec::new(),
+        active: true,
+        created_at: time::OffsetDateTime::now_utc(),
+        last_login: None,
+    };
+    let saved = state.repo.users().upsert(user).await?;
+    let role_names: Vec<String> = saved.roles.iter().map(|r| r.to_string()).collect();
+    let token = state
+        .jwt
+        .mint(saved.id, role_names, JWT_TTL_SECS)
+        .map_err(ApiError::Auth)?;
+    Ok(Json(LoginResponse { token, user: saved.redacted() }))
+}
+
+#[derive(Debug, Deserialize)]
+struct ChangePasswordBody {
+    current_password: String,
+    new_password: String,
+}
+
+/// Authenticated user rotates their own password. Verifies the current
+/// password against the stored argon2id hash, then re-hashes and persists the
+/// new one. Does not invalidate other tokens — that requires JWT denylist
+/// support, scheduled for a future hardening pass.
+async fn change_password(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(body): Json<ChangePasswordBody>,
+) -> ApiResult<StatusCode> {
+    if body.new_password.len() < 8 {
+        return Err(ApiError::BadRequest(
+            "new password must be at least 8 characters".into(),
+        ));
+    }
+    let mut user = state
+        .repo
+        .users()
+        .get(auth.user.id)
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+    let hash = user
+        .password_hash
+        .as_deref()
+        .ok_or(ApiError::Unauthorized)?;
+    if !verify_password(&body.current_password, hash).map_err(ApiError::Auth)? {
+        return Err(ApiError::Auth(ferro_auth::AuthError::InvalidCredentials));
+    }
+    user.password_hash = Some(hash_password(&body.new_password).map_err(ApiError::Auth)?);
+    state.repo.users().upsert(user).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn resolve_type(state: &AppState, type_slug: &str) -> ApiResult<(Site, ContentType)> {

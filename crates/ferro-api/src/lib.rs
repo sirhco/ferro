@@ -9,6 +9,7 @@ pub mod openapi;
 pub mod rest;
 pub mod sse;
 pub mod state;
+pub mod ui;
 
 use std::sync::Arc;
 
@@ -18,7 +19,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 pub use error::{ApiError, ApiResult};
-pub use state::AppState;
+pub use state::{AppState, AuthOptions};
 
 pub fn router(state: Arc<AppState>) -> Router {
     let cors = CorsLayer::permissive();

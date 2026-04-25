@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Args as ClapArgs;
-use ferro_api::AppState;
+use ferro_api::{AppState, AuthOptions};
 use ferro_auth::{AuthService, JwtManager, MemorySessionStore};
 use ferro_plugin::{HookRegistry, LoggingHook};
 
@@ -33,7 +33,12 @@ pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
     let hooks = HookRegistry::new();
     hooks.register(Arc::new(LoggingHook)).await;
 
-    let state = Arc::new(AppState::with_hooks(repo, media, auth, jwt, hooks));
+    let options = AuthOptions {
+        allow_public_signup: cfg.auth.allow_public_signup,
+    };
+    let state = Arc::new(
+        AppState::with_hooks(repo, media, auth, jwt, hooks).with_options(options),
+    );
     let app = ferro_api::router(state);
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;

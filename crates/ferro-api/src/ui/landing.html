@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Ferro</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; padding: 4rem 1rem; max-width: 720px; margin-inline: auto;
+    line-height: 1.55;
+  }
+  h1 { font-size: 2.5rem; margin: 0 0 0.25rem; }
+  .tag { color: #888; margin: 0 0 2rem; }
+  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  a.card {
+    display: block; padding: 1rem 1.25rem; border: 1px solid #8884; border-radius: 8px;
+    text-decoration: none; color: inherit; transition: border-color .15s, transform .15s;
+  }
+  a.card:hover { border-color: #f97316; transform: translateY(-1px); }
+  a.card strong { display: block; margin-bottom: .25rem; }
+  a.card span { color: #888; font-size: .9rem; }
+  code { background: #8881; padding: 0 .3rem; border-radius: 3px; }
+  hr { border: none; border-top: 1px solid #8884; margin: 2rem 0; }
+  footer { color: #888; font-size: .85rem; }
+</style>
+</head>
+<body>
+  <h1>Ferro</h1>
+  <p class="tag">Rust-powered content engine.</p>
+
+  <div class="grid">
+    <a class="card" href="/admin">
+      <strong>Admin →</strong>
+      <span>Log in, manage content, types, users.</span>
+    </a>
+    <a class="card" href="/api/docs">
+      <strong>API Docs →</strong>
+      <span>Swagger UI for the REST surface.</span>
+    </a>
+    <a class="card" href="/graphiql">
+      <strong>GraphiQL →</strong>
+      <span>GraphQL queries + mutations.</span>
+    </a>
+    <a class="card" href="/api/openapi.json">
+      <strong>OpenAPI JSON →</strong>
+      <span>Machine-readable spec.</span>
+    </a>
+  </div>
+
+  <hr />
+  <p>Quick links:</p>
+  <ul>
+    <li><code>POST /api/v1/auth/login</code> — exchange email + password for a JWT.</li>
+    <li><code>GET /api/v1/events?token=&lt;jwt&gt;</code> — Server-Sent Events live preview.</li>
+    <li><code>WS /graphql/ws</code> — GraphQL subscriptions (auth via <code>connection_init</code>).</li>
+  </ul>
+
+  <footer>
+    Need an admin account? Run <code>ferro admin create-user --with-admin --email …</code>.
+  </footer>
+</body>
+</html>

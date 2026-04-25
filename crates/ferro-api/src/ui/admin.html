@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Ferro · Admin</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f9;
+    --surface: #ffffff;
+    --border: #e1e1e6;
+    --text: #1a1a1f;
+    --muted: #6b7280;
+    --accent: #f97316;
+    --accent-text: #ffffff;
+    --danger: #dc2626;
+    --ok: #16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --surface: #1a1d24;
+      --border: #2a2f3a;
+      --text: #e7e9ee;
+      --muted: #8a93a3;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header {
+    display: flex; align-items: center; gap: 1rem;
+    padding: .75rem 1.25rem; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+  header .who { color: var(--muted); font-size: .9rem; margin-left: auto; }
+  header button { margin-left: .5rem; }
+  main { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 50px); }
+  nav {
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 1rem 0;
+  }
+  nav button {
+    display: block; width: 100%; text-align: left; background: none; border: 0;
+    padding: .55rem 1.25rem; color: inherit; cursor: pointer; font-size: .95rem;
+  }
+  nav button:hover { background: var(--bg); }
+  nav button.active { color: var(--accent); border-left: 3px solid var(--accent); padding-left: calc(1.25rem - 3px); }
+  section.view { padding: 1.5rem; overflow: auto; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 1rem 1.25rem; margin-bottom: 1rem;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--border); font-size: .9rem; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  input[type=text], input[type=email], input[type=password], textarea, select {
+    width: 100%; padding: .55rem .75rem; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--text);
+    font-family: inherit; font-size: .95rem;
+  }
+  textarea { font-family: ui-monospace, "SF Mono", monospace; min-height: 8rem; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: .75rem 0 .25rem; }
+  button.primary, button.danger {
+    border: 0; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600;
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); }
+  button.danger  { background: var(--danger); color: white; }
+  button.ghost {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    padding: .4rem .9rem; border-radius: 6px; cursor: pointer;
+  }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 0 0 auto; }
+  .grow { flex: 1 1 auto !important; }
+  .muted { color: var(--muted); }
+  .ok { color: var(--ok); }
+  .err { color: var(--danger); }
+  pre {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: .75rem; font-size: .85rem; overflow: auto;
+  }
+  /* Login screen */
+  .login-shell {
+    display: grid; place-items: center; min-height: 100vh;
+  }
+  .login-card {
+    width: 100%; max-width: 360px; padding: 2rem;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .login-card h1 { margin: 0 0 1.5rem; font-size: 1.25rem; }
+  .pill {
+    display: inline-block; padding: .1rem .55rem; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border); font-size: .75rem;
+  }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+<script>
+"use strict";
+
+// --- Token + fetch ---------------------------------------------------------
+
+const TOKEN_KEY = "ferro.admin.token";
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function setToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); }
+
+async function api(method, path, body) {
+  const headers = { "Accept": "application/json" };
+  const tok = getToken();
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const res = await fetch(path, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let data = null;
+  if (text) {
+    try { data = JSON.parse(text); } catch { data = text; }
+  }
+  if (!res.ok) {
+    const err = new Error((data && data.message) || `${res.status} ${res.statusText}`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+// --- DOM helpers -----------------------------------------------------------
+
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === "html") el.innerHTML = v;
+      else el.setAttribute(k, v);
+    }
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    el.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(c) : c);
+  }
+  return el;
+}
+
+const root = () => document.getElementById("app");
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+// --- App state -------------------------------------------------------------
+
+const state = {
+  user: null,         // current AuthUser from /me
+  view: "content",    // active nav: content | types | users | settings
+  types: [],
+  selectedTypeSlug: null,
+  toast: null,
+};
+
+function setToast(msg, kind) {
+  state.toast = { msg, kind: kind || "ok", at: Date.now() };
+  render();
+  setTimeout(() => { if (state.toast && Date.now() - state.toast.at >= 2500) { state.toast = null; render(); } }, 2700);
+}
+
+// --- Boot ------------------------------------------------------------------
+
+async function boot() {
+  if (!getToken()) { renderLogin(); return; }
+  try {
+    state.user = await api("GET", "/api/v1/auth/me");
+  } catch (e) {
+    setToken(null);
+    renderLogin();
+    return;
+  }
+  try {
+    state.types = await api("GET", "/api/v1/types");
+    if (state.types.length && !state.selectedTypeSlug) state.selectedTypeSlug = state.types[0].slug;
+  } catch { /* may be empty */ }
+  render();
+}
+
+// --- Login -----------------------------------------------------------------
+
+function renderLogin() {
+  const r = root(); clear(r);
+  const form = h("form", { class: "login-card", onsubmit: async (e) => {
+    e.preventDefault();
+    err.textContent = "";
+    try {
+      const data = await api("POST", "/api/v1/auth/login", {
+        email: email.value.trim(),
+        password: pw.value,
+      });
+      setToken(data.token);
+      await boot();
+    } catch (ex) {
+      err.textContent = ex.message;
+    }
+  }},
+    h("h1", null, "Ferro Admin"),
+  );
+  const email = h("input", { type: "email", autocomplete: "username", required: true, placeholder: "you@example.com" });
+  const pw = h("input", { type: "password", autocomplete: "current-password", required: true, placeholder: "••••••••" });
+  const err = h("p", { class: "err", style: { marginTop: ".5rem" } });
+  form.appendChild(h("label", null, "Email"));
+  form.appendChild(email);
+  form.appendChild(h("label", null, "Password"));
+  form.appendChild(pw);
+  form.appendChild(h("p", { style: { marginTop: "1.25rem" } },
+    h("button", { class: "primary", type: "submit", style: { width: "100%" } }, "Log in")));
+  form.appendChild(err);
+  form.appendChild(h("p", { class: "muted", style: { fontSize: ".85rem", marginTop: "1.25rem" } },
+    "No account? Ask an operator to run ",
+    h("code", null, "ferro admin create-user --with-admin"), "."));
+
+  const shell = h("div", { class: "login-shell" }, form);
+  r.appendChild(shell);
+  email.focus();
+}
+
+// --- Main shell ------------------------------------------------------------
+
+function render() {
+  const r = root(); clear(r);
+  if (!state.user) { renderLogin(); return; }
+
+  r.appendChild(h("header", null,
+    h("h1", null, "Ferro"),
+    h("span", { class: "pill" }, state.user.email),
+    h("span", { class: "who" }, `${state.user.handle}${state.user.roles.length ? ` · ${state.user.roles.length} role(s)` : ""}`),
+    h("button", { class: "ghost", onclick: () => { setToken(null); state.user = null; renderLogin(); } }, "Log out"),
+  ));
+
+  const navBtn = (key, label) => h("button", {
+    class: state.view === key ? "active" : "",
+    onclick: () => { state.view = key; render(); }
+  }, label);
+
+  const main = h("main", null,
+    h("nav", null,
+      navBtn("content", "Content"),
+      navBtn("types", "Types"),
+      navBtn("users", "Users"),
+      navBtn("settings", "Settings"),
+    ),
+    h("section", { class: "view", id: "view" }),
+  );
+  r.appendChild(main);
+
+  if (state.toast) {
+    r.appendChild(h("div", {
+      class: "card",
+      style: {
+        position: "fixed", bottom: "1rem", right: "1rem", maxWidth: "360px",
+        borderColor: state.toast.kind === "err" ? "var(--danger)" : "var(--ok)",
+      },
+    }, state.toast.msg));
+  }
+
+  const view = document.getElementById("view");
+  if (state.view === "content") renderContent(view);
+  else if (state.view === "types") renderTypes(view);
+  else if (state.view === "users") renderUsers(view);
+  else if (state.view === "settings") renderSettings(view);
+}
+
+// --- Content view ----------------------------------------------------------
+
+async function renderContent(view) {
+  clear(view);
+  view.appendChild(h("h2", null, "Content"));
+
+  if (!state.types.length) {
+    view.appendChild(h("p", { class: "muted" }, "No content types yet. Create one in ",
+      h("a", { href: "#", onclick: (e) => { e.preventDefault(); state.view = "types"; render(); } }, "Types"), "."));
+    return;
+  }
+
+  const select = h("select", {
+    onchange: (e) => { state.selectedTypeSlug = e.target.value; renderContent(view); }
+  }, ...state.types.map(t => h("option", { value: t.slug, selected: t.slug === state.selectedTypeSlug }, t.name)));
+
+  const newBtn = h("button", { class: "primary", onclick: () => openContentEditor(null) }, "New entry");
+  view.appendChild(h("div", { class: "row", style: { marginBottom: "1rem" } },
+    h("label", { class: "grow", style: { margin: 0 } }, "Type", select), newBtn));
+
+  const list = h("div", { class: "card" }, h("p", { class: "muted" }, "Loading…"));
+  view.appendChild(list);
+
+  try {
+    const page = await api("GET", `/api/v1/content/${encodeURIComponent(state.selectedTypeSlug)}?per_page=200`);
+    clear(list);
+    if (!page.items || !page.items.length) {
+      list.appendChild(h("p", { class: "muted" }, "No entries yet."));
+      return;
+    }
+    const tbl = h("table", null,
+      h("thead", null, h("tr", null,
+        h("th", null, "Slug"),
+        h("th", null, "Status"),
+        h("th", null, "Updated"),
+        h("th", null, ""),
+      )));
+    const tbody = h("tbody");
+    for (const c of page.items) {
+      tbody.appendChild(h("tr", null,
+        h("td", null, c.slug),
+        h("td", null, h("span", { class: "pill" }, c.status)),
+        h("td", { class: "muted" }, new Date(c.updated_at).toLocaleString()),
+        h("td", null,
+          h("button", { class: "ghost", onclick: () => openContentEditor(c) }, "Edit"),
+          " ",
+          h("button", { class: "ghost", onclick: () => publishContent(c) }, "Publish"),
+          " ",
+          h("button", { class: "danger", onclick: () => deleteContent(c) }, "Delete"),
+        ),
+      ));
+    }
+    tbl.appendChild(tbody);
+    list.appendChild(tbl);
+  } catch (ex) {
+    list.innerHTML = "";
+    list.appendChild(h("p", { class: "err" }, ex.message));
+  }
+}
+
+async function openContentEditor(existing) {
+  const ty = state.types.find(t => t.slug === state.selectedTypeSlug);
+  if (!ty) return;
+  const isNew = !existing;
+  const data = isNew ? {} : structuredClone(existing.data || {});
+  const slug = h("input", { type: "text", value: existing ? existing.slug : "" });
+  const dataArea = h("textarea", null, JSON.stringify(data, null, 2));
+  const err = h("p", { class: "err" });
+
+  const view = document.getElementById("view");
+  clear(view);
+  view.appendChild(h("h2", null, isNew ? `New ${ty.name}` : `Edit ${ty.name} · ${existing.slug}`));
+  view.appendChild(h("div", { class: "card" },
+    h("label", null, "Slug", slug),
+    h("label", null, "Data (JSON)", dataArea),
+    err,
+    h("div", { class: "row", style: { marginTop: "1rem" } },
+      h("button", { class: "primary", onclick: async () => {
+        let parsed;
+        try { parsed = JSON.parse(dataArea.value); } catch { err.textContent = "Invalid JSON"; return; }
+        try {
+          if (isNew) {
+            await api("POST", `/api/v1/content/${encodeURIComponent(ty.slug)}`, {
+              type_id: ty.id, slug: slug.value.trim(), locale: ty.default_locale || "en", data: parsed,
+            });
+            setToast("Created.");
+          } else {
+            await api("PATCH", `/api/v1/content/${encodeURIComponent(ty.slug)}/${encodeURIComponent(existing.slug)}`, {
+              slug: slug.value.trim() !== existing.slug ? slug.value.trim() : undefined,
+              data: parsed,
+            });
+            setToast("Saved.");
+          }
+          state.view = "content"; render();
+        } catch (ex) { err.textContent = ex.message; }
+      } }, isNew ? "Create" : "Save"),
+      h("button", { class: "ghost", onclick: () => { state.view = "content"; render(); } }, "Cancel"),
+    ),
+  ));
+}
+
+async function publishContent(c) {
+  const ty = state.types.find(t => t.slug === state.selectedTypeSlug);
+  try {
+    await api("POST", `/api/v1/content/${encodeURIComponent(ty.slug)}/${encodeURIComponent(c.slug)}/publish`);
+    setToast(`Published ${c.slug}.`);
+    render();
+  } catch (ex) { setToast(ex.message, "err"); }
+}
+
+async function deleteContent(c) {
+  if (!confirm(`Delete ${c.slug}?`)) return;
+  const ty = state.types.find(t => t.slug === state.selectedTypeSlug);
+  try {
+    await api("DELETE", `/api/v1/content/${encodeURIComponent(ty.slug)}/${encodeURIComponent(c.slug)}`);
+    setToast(`Deleted ${c.slug}.`);
+    render();
+  } catch (ex) { setToast(ex.message, "err"); }
+}
+
+// --- Types view ------------------------------------------------------------
+
+function renderTypes(view) {
+  clear(view);
+  view.appendChild(h("h2", null, "Content Types"));
+  const tbl = h("table", null, h("thead", null, h("tr", null,
+    h("th", null, "Name"), h("th", null, "Slug"), h("th", null, "Fields"))));
+  const tbody = h("tbody");
+  for (const t of state.types) {
+    tbody.appendChild(h("tr", null,
+      h("td", null, t.name),
+      h("td", null, h("code", null, t.slug)),
+      h("td", null, (t.fields || []).map(f => f.slug).join(", ")),
+    ));
+  }
+  tbl.appendChild(tbody);
+  view.appendChild(h("div", { class: "card" }, tbl));
+  view.appendChild(h("p", { class: "muted" },
+    "Type creation/editing is exposed at ",
+    h("code", null, "POST /api/v1/types"),
+    " — JSON schema editor lands with the Leptos admin in v0.7."));
+}
+
+// --- Users view ------------------------------------------------------------
+
+async function renderUsers(view) {
+  clear(view);
+  view.appendChild(h("h2", null, "Users"));
+  const list = h("div", { class: "card" }, h("p", { class: "muted" }, "Loading…"));
+  view.appendChild(list);
+  try {
+    const users = await api("GET", "/api/v1/users");
+    clear(list);
+    const tbl = h("table", null, h("thead", null, h("tr", null,
+      h("th", null, "Email"), h("th", null, "Handle"), h("th", null, "Roles"), h("th", null, "Active"))));
+    const tbody = h("tbody");
+    for (const u of users) {
+      tbody.appendChild(h("tr", null,
+        h("td", null, u.email),
+        h("td", null, u.handle),
+        h("td", null, (u.roles || []).length),
+        h("td", null, u.active ? h("span", { class: "ok" }, "yes") : h("span", { class: "err" }, "no")),
+      ));
+    }
+    tbl.appendChild(tbody);
+    list.appendChild(tbl);
+  } catch (ex) {
+    clear(list);
+    list.appendChild(h("p", { class: "err" }, ex.message,
+      ex.status === 403 ? " (your role doesn't have ManageUsers)" : ""));
+  }
+}
+
+// --- Settings view ---------------------------------------------------------
+
+function renderSettings(view) {
+  clear(view);
+  view.appendChild(h("h2", null, "Settings"));
+  view.appendChild(h("div", { class: "card" },
+    h("h3", { style: { marginTop: 0 } }, "Change password"),
+    renderChangePasswordForm(),
+  ));
+  view.appendChild(h("div", { class: "card" },
+    h("h3", { style: { marginTop: 0 } }, "Session"),
+    h("p", null, "Logged in as ", h("strong", null, state.user.email),
+      ". Token stored in browser localStorage."),
+    h("button", { class: "ghost", onclick: () => { setToken(null); state.user = null; renderLogin(); } }, "Log out"),
+  ));
+}
+
+function renderChangePasswordForm() {
+  const cur = h("input", { type: "password", autocomplete: "current-password", required: true });
+  const next = h("input", { type: "password", autocomplete: "new-password", required: true, minlength: 8 });
+  const status = h("p");
+  const form = h("form", { onsubmit: async (e) => {
+    e.preventDefault();
+    status.className = "muted";
+    status.textContent = "Updating…";
+    try {
+      await api("POST", "/api/v1/auth/change-password", {
+        current_password: cur.value, new_password: next.value,
+      });
+      cur.value = ""; next.value = "";
+      status.className = "ok"; status.textContent = "Password updated.";
+    } catch (ex) {
+      status.className = "err"; status.textContent = ex.message;
+    }
+  } });
+  form.appendChild(h("label", null, "Current password", cur));
+  form.appendChild(h("label", null, "New password (min 8 chars)", next));
+  form.appendChild(h("p", null, h("button", { class: "primary", type: "submit" }, "Update")));
+  form.appendChild(status);
+  return form;
+}
+
+boot();
+</script>
+</body>
+</html>
