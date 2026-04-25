@@ -223,6 +223,59 @@ async fn change_password_rotates_hash() {
 }
 
 #[tokio::test]
+async fn old_jwt_rejected_after_password_change() {
+    let (tmp, state) = fixture(false).await;
+    seed_user(&tmp, &state, "u@example.com", "original-password").await;
+
+    // Mint old token via login.
+    let (_s, v) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/login",
+            json!({ "email": "u@example.com", "password": "original-password" }),
+            None,
+        ),
+    )
+    .await;
+    let old_token = v["token"].as_str().unwrap().to_string();
+
+    // The /me endpoint accepts the token.
+    let req = Request::get("/api/v1/auth/me")
+        .header(header::AUTHORIZATION, format!("Bearer {old_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (s, _) = req_json(state.clone(), req).await;
+    assert_eq!(s, StatusCode::OK);
+
+    // Sleep one full second so the new password_changed_at timestamp is
+    // strictly *after* the JWT's `iat` (`iat` has 1-second resolution).
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+    // Rotate password.
+    let (s, _) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/change-password",
+            json!({
+                "current_password": "original-password",
+                "new_password": "rotated-password"
+            }),
+            Some(&old_token),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+
+    // Old token now rejected.
+    let req = Request::get("/api/v1/auth/me")
+        .header(header::AUTHORIZATION, format!("Bearer {old_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (s, _) = req_json(state, req).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn change_password_rejects_wrong_current() {
     let (tmp, state) = fixture(false).await;
     seed_user(&tmp, &state, "u@example.com", "original-password").await;
@@ -264,6 +317,7 @@ async fn seed_user(tmp: &tempfile::TempDir, state: &Arc<AppState>, email: &str, 
         active: true,
         created_at: OffsetDateTime::now_utc(),
         last_login: None,
+        password_changed_at: None,
     };
     state.repo.users().upsert(user.clone()).await.unwrap();
     // Belt-and-braces: also write the JSON manually so older tests that

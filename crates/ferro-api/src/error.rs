@@ -28,6 +28,8 @@ pub enum ApiError {
     Unauthorized,
     #[error("forbidden: {0}")]
     Forbidden(String),
+    #[error("too many requests; retry after {0:?}")]
+    RateLimited(std::time::Duration),
     #[error("internal: {0}")]
     Internal(String),
 }
@@ -48,6 +50,7 @@ impl IntoResponse for ApiError {
             Self::Forbidden(_) | Self::Auth(AuthError::Forbidden) => {
                 (StatusCode::FORBIDDEN, "forbidden")
             }
+            Self::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             Self::BadRequest(_) | Self::Core(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         };

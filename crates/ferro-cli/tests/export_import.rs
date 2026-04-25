@@ -124,6 +124,7 @@ async fn export_then_import_round_trip() {
         active: true,
         created_at: now,
         last_login: None,
+        password_changed_at: None,
     };
     src_repo.users().upsert(user.clone()).await.unwrap();
 

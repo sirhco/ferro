@@ -138,6 +138,7 @@ async fn create_user(
         active: !args.inactive,
         created_at: OffsetDateTime::now_utc(),
         last_login: None,
+        password_changed_at: None,
     };
     let saved = repo.users().upsert(user).await?;
     println!(

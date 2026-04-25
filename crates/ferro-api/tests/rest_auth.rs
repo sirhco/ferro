@@ -106,6 +106,7 @@ async fn fixture() -> Fixture {
         active: true,
         created_at: now,
         last_login: None,
+        password_changed_at: None,
     };
     // `User.password_hash` is `#[serde(skip_serializing)]`, so going through
     // the repo would drop the hash on disk. Write the JSON directly so the

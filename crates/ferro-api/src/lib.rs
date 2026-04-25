@@ -6,6 +6,7 @@ pub mod auth;
 pub mod error;
 pub mod graphql;
 pub mod openapi;
+pub mod rate_limit;
 pub mod rest;
 pub mod sse;
 pub mod state;
@@ -19,6 +20,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 pub use error::{ApiError, ApiResult};
+pub use rate_limit::{RateLimitConfig, RateLimiter};
 pub use state::{AppState, AuthOptions};
 
 pub fn router(state: Arc<AppState>) -> Router {

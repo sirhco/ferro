@@ -38,6 +38,7 @@ impl AuthService {
             active: true,
             created_at: OffsetDateTime::now_utc(),
             last_login: None,
+            password_changed_at: None,
         };
         let user = self.repo.users().upsert(user).await?;
         Ok(user)

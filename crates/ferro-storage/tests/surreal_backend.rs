@@ -185,6 +185,7 @@ async fn user_role_round_trip() {
         active: true,
         created_at: OffsetDateTime::now_utc(),
         last_login: None,
+        password_changed_at: None,
     };
     repo.users().upsert(user.clone()).await.unwrap();
 

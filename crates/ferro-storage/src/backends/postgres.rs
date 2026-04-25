@@ -192,6 +192,9 @@ fn row_to_user(row: &sqlx::postgres::PgRow) -> StorageResult<User> {
         active: row.try_get("active").map_err(map_sqlx)?,
         created_at: row.try_get("created_at").map_err(map_sqlx)?,
         last_login: row.try_get("last_login").map_err(map_sqlx)?,
+        password_changed_at: row
+            .try_get::<Option<time::OffsetDateTime>, _>("password_changed_at")
+            .unwrap_or(None),
     })
 }
 
@@ -742,8 +745,8 @@ impl UserRepo for PgRepo {
         sqlx::query(
             r#"
             INSERT INTO users (id, email, handle, display_name, password_hash, roles,
-                               active, created_at, last_login)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                               active, created_at, last_login, password_changed_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (id) DO UPDATE SET
                 email = EXCLUDED.email,
                 handle = EXCLUDED.handle,
@@ -751,7 +754,8 @@ impl UserRepo for PgRepo {
                 password_hash = EXCLUDED.password_hash,
                 roles = EXCLUDED.roles,
                 active = EXCLUDED.active,
-                last_login = EXCLUDED.last_login
+                last_login = EXCLUDED.last_login,
+                password_changed_at = EXCLUDED.password_changed_at
             "#,
         )
         .bind(user.id.to_string())
@@ -763,6 +767,7 @@ impl UserRepo for PgRepo {
         .bind(user.active)
         .bind(user.created_at)
         .bind(user.last_login)
+        .bind(user.password_changed_at)
         .execute(&self.pool)
         .await
         .map_err(map_sqlx)?;

@@ -96,6 +96,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<AppState>, ContentType) {
         active: true,
         created_at: now,
         last_login: None,
+        password_changed_at: None,
     };
     let user_path = tmp.path().join("data/users").join(format!("{}.json", user.id));
     let mut user_value = serde_json::to_value(&user).unwrap();

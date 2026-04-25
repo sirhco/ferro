@@ -49,6 +49,13 @@ impl AuthUser {
         if !user.active {
             return Err(ApiError::Forbidden("account disabled".into()));
         }
+        // Reject tokens minted before the user's last password change. Gives
+        // logout-all-sessions semantics for free without a stateful denylist.
+        if let Some(changed) = user.password_changed_at {
+            if claims.iat < changed.unix_timestamp() {
+                return Err(ApiError::Unauthorized);
+            }
+        }
 
         let roles = resolve_roles(state, &user.roles).await?;
         let ctx = AuthContext { user_id: user.id, roles };

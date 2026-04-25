@@ -6,7 +6,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum::body::Body;
 use axum::extract::Multipart;
+use axum::http::HeaderMap;
 use axum::response::Response;
+use std::net::IpAddr;
 use ferro_auth::{authorize, hash_password, verify_password, AuthContext};
 use ferro_core::{
     Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, Media, MediaId, MediaKind,
@@ -220,8 +222,10 @@ const JWT_TTL_SECS: i64 = 60 * 60 * 12; // 12 hours
 
 async fn login(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(body): Json<LoginBody>,
 ) -> ApiResult<Json<LoginResponse>> {
+    enforce_auth_rate(&state, &headers)?;
     let (user, _session) = state.auth.login(&body.email, &body.password, None, None).await?;
     let role_names: Vec<String> = user.roles.iter().map(|r| r.to_string()).collect();
     let token = state
@@ -255,8 +259,10 @@ struct SignupBody {
 /// `PATCH /api/v1/users/{id}` if they need any permissions.
 async fn signup(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(body): Json<SignupBody>,
 ) -> ApiResult<Json<LoginResponse>> {
+    enforce_auth_rate(&state, &headers)?;
     if !state.options.allow_public_signup {
         return Err(ApiError::Forbidden(
             "public signup disabled; set auth.allow_public_signup = true".into(),
@@ -280,6 +286,7 @@ async fn signup(
         active: true,
         created_at: time::OffsetDateTime::now_utc(),
         last_login: None,
+        password_changed_at: None,
     };
     let saved = state.repo.users().upsert(user).await?;
     let role_names: Vec<String> = saved.roles.iter().map(|r| r.to_string()).collect();
@@ -324,6 +331,7 @@ async fn change_password(
         return Err(ApiError::Auth(ferro_auth::AuthError::InvalidCredentials));
     }
     user.password_hash = Some(hash_password(&body.new_password).map_err(ApiError::Auth)?);
+    user.password_changed_at = Some(time::OffsetDateTime::now_utc());
     state.repo.users().upsert(user).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -446,6 +454,37 @@ async fn delete_type(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Token-bucket gate for unauthenticated endpoints (login + signup).
+///
+/// Identifies the caller via `X-Real-IP` / first `X-Forwarded-For` entry, the
+/// conventions emitted by reverse proxies. Falls back to a synthetic
+/// `0.0.0.0` bucket when no header is present so direct `oneshot` test
+/// callers share a single bucket — production deployments should always sit
+/// behind a proxy that fills these headers.
+fn enforce_auth_rate(state: &AppState, headers: &HeaderMap) -> ApiResult<()> {
+    let ip = client_ip(headers).unwrap_or(IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    if let Some(retry) = state.auth_rate_limit.check(ip) {
+        return Err(ApiError::RateLimited(retry));
+    }
+    Ok(())
+}
+
+fn client_ip(headers: &HeaderMap) -> Option<IpAddr> {
+    if let Some(v) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
+        if let Ok(ip) = v.trim().parse() {
+            return Some(ip);
+        }
+    }
+    if let Some(v) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(first) = v.split(',').next() {
+            if let Ok(ip) = first.trim().parse() {
+                return Some(ip);
+            }
+        }
+    }
+    None
+}
+
 fn require_manage_users(ctx: &AuthContext) -> ApiResult<()> {
     authorize(ctx, Permission::ManageUsers)
         .map_err(|_| ApiError::Forbidden("user management denied".into()))
@@ -538,6 +577,7 @@ async fn create_user(
         active: body.active,
         created_at: time::OffsetDateTime::now_utc(),
         last_login: None,
+        password_changed_at: None,
     };
     Ok(Json(state.repo.users().upsert(user).await?.redacted()))
 }

@@ -30,6 +30,12 @@ pub struct User {
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339::option", default)]
     pub last_login: Option<OffsetDateTime>,
+    /// Last time the password (or any other event that should invalidate
+    /// outstanding JWTs) changed. The auth middleware rejects tokens whose
+    /// `iat` precedes this timestamp, providing logout-all-sessions semantics
+    /// without a stateful denylist.
+    #[serde(with = "time::serde::rfc3339::option", default)]
+    pub password_changed_at: Option<OffsetDateTime>,
 }
 
 impl User {

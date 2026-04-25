@@ -5,6 +5,8 @@ use ferro_media::MediaStore;
 use ferro_plugin::HookRegistry;
 use ferro_storage::Repository;
 
+use crate::rate_limit::{RateLimitConfig, RateLimiter};
+
 /// Operator-tunable flags surfaced through `ferro.toml [auth]`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AuthOptions {
@@ -21,6 +23,10 @@ pub struct AppState {
     pub jwt: Arc<JwtManager>,
     pub hooks: HookRegistry,
     pub options: AuthOptions,
+    /// Token-bucket rate limiter shared across the auth endpoints. Keyed by
+    /// peer IP; tests can opt out by passing `RateLimitConfig` with a huge
+    /// burst (`u32::MAX`) so checks always succeed.
+    pub auth_rate_limit: Arc<RateLimiter>,
 }
 
 impl AppState {
@@ -37,6 +43,7 @@ impl AppState {
             jwt,
             hooks: HookRegistry::new(),
             options: AuthOptions::default(),
+            auth_rate_limit: Arc::new(RateLimiter::new(RateLimitConfig::default())),
         }
     }
 
@@ -56,7 +63,16 @@ impl AppState {
             jwt,
             hooks,
             options: AuthOptions::default(),
+            auth_rate_limit: Arc::new(RateLimiter::new(RateLimitConfig::default())),
         }
+    }
+
+    /// Builder-style override for the auth rate limiter. Tests use this to
+    /// crank the burst high enough that checks never trip.
+    #[must_use]
+    pub fn with_rate_limit(mut self, cfg: RateLimitConfig) -> Self {
+        self.auth_rate_limit = Arc::new(RateLimiter::new(cfg));
+        self
     }
 
     /// Builder-style override for `AuthOptions`.
