@@ -2,13 +2,16 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_graphql::http::GraphiQLSource;
-use async_graphql::{Context, EmptySubscription, InputObject, Object, Schema};
-use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
+use async_graphql::{Context, InputObject, Object, Schema, Subscription};
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
 use axum::Router;
+use futures::Stream;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt as _;
 use ferro_auth::authorize;
 use ferro_core::{
     ContentPatch, ContentType, ContentTypeId, FieldValue, NewContent, Permission, Scope, Site,
@@ -103,7 +106,125 @@ struct ContentPatchInput {
 
 // --- Schema ---
 
-pub type FerroSchema = Schema<Query, Mutation, EmptySubscription>;
+pub type FerroSchema = Schema<Query, Mutation, SubscriptionRoot>;
+
+/// Flat event node for GraphQL subscriptions. Each variant of [`HookEvent`]
+/// surfaces as a single `ContentEventNode` with `kind` discriminating and the
+/// remaining fields populated when applicable.
+pub struct ContentEventNode {
+    kind: &'static str,
+    content_id: Option<String>,
+    type_id: Option<String>,
+    site_id: Option<String>,
+    slug: Option<String>,
+    status: Option<String>,
+    rows_migrated: Option<u64>,
+}
+
+#[Object]
+impl ContentEventNode {
+    async fn kind(&self) -> &str {
+        self.kind
+    }
+    async fn content_id(&self) -> Option<&str> {
+        self.content_id.as_deref()
+    }
+    async fn type_id(&self) -> Option<&str> {
+        self.type_id.as_deref()
+    }
+    async fn site_id(&self) -> Option<&str> {
+        self.site_id.as_deref()
+    }
+    async fn slug(&self) -> Option<&str> {
+        self.slug.as_deref()
+    }
+    async fn status(&self) -> Option<&str> {
+        self.status.as_deref()
+    }
+    async fn rows_migrated(&self) -> Option<u64> {
+        self.rows_migrated
+    }
+}
+
+impl From<&HookEvent> for ContentEventNode {
+    fn from(evt: &HookEvent) -> Self {
+        match evt {
+            HookEvent::ContentCreated { content } => Self {
+                kind: "content.created",
+                content_id: Some(content.id.to_string()),
+                type_id: Some(content.type_id.to_string()),
+                site_id: Some(content.site_id.to_string()),
+                slug: Some(content.slug.clone()),
+                status: Some(format!("{:?}", content.status).to_lowercase()),
+                rows_migrated: None,
+            },
+            HookEvent::ContentUpdated { after, .. } => Self {
+                kind: "content.updated",
+                content_id: Some(after.id.to_string()),
+                type_id: Some(after.type_id.to_string()),
+                site_id: Some(after.site_id.to_string()),
+                slug: Some(after.slug.clone()),
+                status: Some(format!("{:?}", after.status).to_lowercase()),
+                rows_migrated: None,
+            },
+            HookEvent::ContentPublished { content } => Self {
+                kind: "content.published",
+                content_id: Some(content.id.to_string()),
+                type_id: Some(content.type_id.to_string()),
+                site_id: Some(content.site_id.to_string()),
+                slug: Some(content.slug.clone()),
+                status: Some(format!("{:?}", content.status).to_lowercase()),
+                rows_migrated: None,
+            },
+            HookEvent::ContentDeleted { site_id, type_id, content_id, slug } => Self {
+                kind: "content.deleted",
+                content_id: Some(content_id.to_string()),
+                type_id: Some(type_id.to_string()),
+                site_id: Some(site_id.to_string()),
+                slug: Some(slug.clone()),
+                status: None,
+                rows_migrated: None,
+            },
+            HookEvent::TypeMigrated { site_id, type_id, rows_migrated, .. } => Self {
+                kind: "type.migrated",
+                content_id: None,
+                type_id: Some(type_id.to_string()),
+                site_id: Some(site_id.to_string()),
+                slug: None,
+                status: None,
+                rows_migrated: Some(*rows_migrated),
+            },
+            _ => Self {
+                kind: "event",
+                content_id: None,
+                type_id: None,
+                site_id: None,
+                slug: None,
+                status: None,
+                rows_migrated: None,
+            },
+        }
+    }
+}
+
+pub struct SubscriptionRoot;
+
+#[Subscription]
+impl SubscriptionRoot {
+    /// Live stream of content + schema events. Subscribers see every mutation
+    /// fan-out from the in-process [`ferro_plugin::HookRegistry`]; lagged
+    /// receivers skip ahead silently.
+    async fn content_changes<'ctx>(
+        &self,
+        ctx: &'ctx Context<'_>,
+    ) -> async_graphql::Result<impl Stream<Item = ContentEventNode> + 'ctx> {
+        let state = ctx.data::<Arc<AppState>>()?;
+        let rx = state.hooks.subscribe();
+        Ok(BroadcastStream::new(rx)
+            .filter_map(|res| res.ok())
+            .map(|evt| ContentEventNode::from(&evt)))
+    }
+}
 
 pub struct Query;
 
@@ -309,13 +430,34 @@ async fn resolve_entry(
 // --- Router ---
 
 pub fn schema(state: Arc<AppState>) -> FerroSchema {
-    Schema::build(Query, Mutation, EmptySubscription).data(state).finish()
+    Schema::build(Query, Mutation, SubscriptionRoot).data(state).finish()
 }
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/graphql", post(graphql_handler))
         .route("/graphiql", get(graphiql))
+        .route("/graphql/ws", get(subscription_handler))
+}
+
+/// WebSocket entrypoint for GraphQL subscriptions. We rebuild a per-request
+/// schema so each connection's subscriber gets a fresh broadcast receiver
+/// (subscribers can't be cloned across requests). The `GraphQLSubscription`
+/// service speaks both `graphql-ws` and `graphql-transport-ws` protocols.
+async fn subscription_handler(
+    State(state): State<Arc<AppState>>,
+    ws: axum::extract::WebSocketUpgrade,
+    proto: async_graphql_axum::GraphQLProtocol,
+) -> impl IntoResponse {
+    let schema = schema(state);
+    ws.protocols(async_graphql::http::ALL_WEBSOCKET_PROTOCOLS).on_upgrade(move |socket| {
+        async_graphql_axum::GraphQLWebSocket::new(socket, schema, proto).serve()
+    })
+}
+
+#[allow(dead_code)]
+fn _service_check<E: async_graphql::Executor>(e: E) -> GraphQLSubscription<E> {
+    GraphQLSubscription::new(e)
 }
 
 async fn graphql_handler(

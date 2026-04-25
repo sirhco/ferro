@@ -47,3 +47,4 @@ tempfile = "3"
 tower = { workspace = true, features = ["util"] }
 http-body-util = "0.1"
 reqwest = { workspace = true, features = ["json", "stream"] }
+tokio-tungstenite = "0.24"
