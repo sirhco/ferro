@@ -9,6 +9,7 @@ use ferro_core::{
     Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, NewContent, Page,
     Permission, Scope, Site, User,
 };
+use ferro_plugin::HookEvent;
 use ferro_storage::schema as schema_migrator;
 use serde::{Deserialize, Serialize};
 
@@ -104,7 +105,9 @@ async fn create_content(
     }
     require_write(&auth.ctx, ty.id)?;
     body.validate(&ty)?;
-    Ok(Json(state.repo.content().create(site.id, body).await?))
+    let created = state.repo.content().create(site.id, body).await?;
+    state.hooks.dispatch(HookEvent::ContentCreated { content: created.clone() }).await;
+    Ok(Json(created))
 }
 
 async fn update_content(
@@ -116,7 +119,16 @@ async fn update_content(
     let (_site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
     require_write(&auth.ctx, ty.id)?;
     patch.validate(&ty)?;
-    Ok(Json(state.repo.content().update(content.id, patch).await?))
+    let before = content.clone();
+    let after = state.repo.content().update(content.id, patch).await?;
+    state
+        .hooks
+        .dispatch(HookEvent::ContentUpdated {
+            before: Box::new(before),
+            after: Box::new(after.clone()),
+        })
+        .await;
+    Ok(Json(after))
 }
 
 async fn delete_content(
@@ -124,9 +136,18 @@ async fn delete_content(
     auth: AuthUser,
     Path((type_slug, slug)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
-    let (_site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
+    let (site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
     require_write(&auth.ctx, ty.id)?;
     state.repo.content().delete(content.id).await?;
+    state
+        .hooks
+        .dispatch(HookEvent::ContentDeleted {
+            site_id: site.id,
+            type_id: ty.id,
+            content_id: content.id,
+            slug: content.slug,
+        })
+        .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -138,7 +159,12 @@ async fn publish_content(
     let (_site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
     authorize(&auth.ctx, Permission::Publish(Scope::Type { id: ty.id }))
         .map_err(|_| ApiError::Forbidden("publish denied".into()))?;
-    Ok(Json(state.repo.content().publish(content.id).await?))
+    let published = state.repo.content().publish(content.id).await?;
+    state
+        .hooks
+        .dispatch(HookEvent::ContentPublished { content: published.clone() })
+        .await;
+    Ok(Json(published))
 }
 
 #[derive(Debug, Deserialize)]
@@ -272,6 +298,15 @@ async fn update_type(
     let saved = state.repo.types().upsert(new_ty).await?;
     let rows_migrated =
         schema_migrator::apply_changes(&*state.repo, site.id, saved.id, &changes).await?;
+    state
+        .hooks
+        .dispatch(HookEvent::TypeMigrated {
+            site_id: site.id,
+            type_id: saved.id,
+            rows_migrated,
+            changes: changes.clone(),
+        })
+        .await;
     Ok(Json(TypeUpdateResponse { ty: saved, rows_migrated, changes }))
 }
 

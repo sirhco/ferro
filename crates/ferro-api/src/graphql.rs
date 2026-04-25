@@ -12,6 +12,7 @@ use ferro_auth::authorize;
 use ferro_core::{
     ContentPatch, ContentType, ContentTypeId, FieldValue, NewContent, Permission, Scope, Site,
 };
+use ferro_plugin::HookEvent;
 
 use crate::auth::AuthUser;
 use crate::state::AppState;
@@ -178,7 +179,12 @@ impl Mutation {
             author_id: Some(auth.user.id),
         };
         new.validate(&ty)?;
-        Ok(ContentNode(state.repo.content().create(site.id, new).await?))
+        let created = state.repo.content().create(site.id, new).await?;
+        state
+            .hooks
+            .dispatch(HookEvent::ContentCreated { content: created.clone() })
+            .await;
+        Ok(ContentNode(created))
     }
 
     async fn update_content(
@@ -200,7 +206,16 @@ impl Mutation {
             .map_err(|e| async_graphql::Error::new(format!("invalid patch data: {e}")))?;
         let cp = ContentPatch { slug: patch.slug, status: None, data };
         cp.validate(&ty)?;
-        Ok(ContentNode(state.repo.content().update(content.id, cp).await?))
+        let before = content.clone();
+        let after = state.repo.content().update(content.id, cp).await?;
+        state
+            .hooks
+            .dispatch(HookEvent::ContentUpdated {
+                before: Box::new(before),
+                after: Box::new(after.clone()),
+            })
+            .await;
+        Ok(ContentNode(after))
     }
 
     async fn publish_content(
@@ -214,7 +229,12 @@ impl Mutation {
         let (_site, ty, content) = resolve_entry(state, &type_slug, &slug).await?;
         authorize(&auth.ctx, Permission::Publish(Scope::Type { id: ty.id }))
             .map_err(|_| async_graphql::Error::new("publish denied"))?;
-        Ok(ContentNode(state.repo.content().publish(content.id).await?))
+        let published = state.repo.content().publish(content.id).await?;
+        state
+            .hooks
+            .dispatch(HookEvent::ContentPublished { content: published.clone() })
+            .await;
+        Ok(ContentNode(published))
     }
 
     async fn delete_content(
@@ -225,9 +245,18 @@ impl Mutation {
     ) -> async_graphql::Result<bool> {
         let state = ctx.data::<Arc<AppState>>()?;
         let auth = require_auth(ctx)?;
-        let (_site, ty, content) = resolve_entry(state, &type_slug, &slug).await?;
+        let (site, ty, content) = resolve_entry(state, &type_slug, &slug).await?;
         require_write(auth, ty.id)?;
         state.repo.content().delete(content.id).await?;
+        state
+            .hooks
+            .dispatch(HookEvent::ContentDeleted {
+                site_id: site.id,
+                type_id: ty.id,
+                content_id: content.id,
+                slug: content.slug,
+            })
+            .await;
         Ok(true)
     }
 }

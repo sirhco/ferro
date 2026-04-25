@@ -2932,6 +2932,7 @@ dependencies = [
  "ferro-auth",
  "ferro-core",
  "ferro-media",
+ "ferro-plugin",
  "ferro-storage",
  "futures",
  "http-body-util",

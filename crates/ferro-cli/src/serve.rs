@@ -5,6 +5,7 @@ use anyhow::Result;
 use clap::Args as ClapArgs;
 use ferro_api::AppState;
 use ferro_auth::{AuthService, JwtManager, MemorySessionStore};
+use ferro_plugin::{HookRegistry, LoggingHook};
 
 use crate::config::FerroConfig;
 
@@ -29,7 +30,10 @@ pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
     let jwt_secret = cfg.auth.resolve_jwt_secret();
     let jwt = Arc::new(JwtManager::hs256(cfg.auth.jwt_issuer.clone(), jwt_secret.as_bytes()));
 
-    let state = Arc::new(AppState::new(repo, media, auth, jwt));
+    let hooks = HookRegistry::new();
+    hooks.register(Arc::new(LoggingHook)).await;
+
+    let state = Arc::new(AppState::with_hooks(repo, media, auth, jwt, hooks));
     let app = ferro_api::router(state);
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;

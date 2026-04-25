@@ -8,6 +8,7 @@
 
 pub mod capability;
 pub mod error;
+pub mod hook;
 pub mod host;
 pub mod manifest;
 pub mod registry;
@@ -15,6 +16,7 @@ pub mod runtime;
 
 pub use capability::Capability;
 pub use error::{PluginError, PluginResult};
+pub use hook::{HookEvent, HookHandler, HookRegistry, LoggingHook};
 pub use host::HostContext;
 pub use manifest::PluginManifest;
 pub use registry::PluginRegistry;
