@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ferro_cli::{build, export, import, init, migrate, plugin, serve};
+use ferro_cli::{admin, build, export, import, init, migrate, plugin, serve};
 
 /// Ferro — Rust-powered content engine.
 #[derive(Debug, Parser)]
@@ -35,6 +35,9 @@ pub enum Cmd {
     /// Plugin management.
     #[command(subcommand)]
     Plugin(plugin::Cmd),
+    /// Operator tooling: bootstrap admin users + roles directly against the repo.
+    #[command(subcommand)]
+    Admin(admin::Cmd),
 }
 
 #[tokio::main]
@@ -55,5 +58,6 @@ async fn main() -> Result<()> {
         Cmd::Import(a) => import::run(a, cli.config).await,
         Cmd::Build(a) => build::run(a).await,
         Cmd::Plugin(a) => plugin::run(a, cli.config).await,
+        Cmd::Admin(a) => admin::run(a, cli.config).await,
     }
 }
