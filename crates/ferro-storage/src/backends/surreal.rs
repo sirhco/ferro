@@ -343,6 +343,11 @@ impl ContentRepo for SurrealRepo {
         if q.locale.is_some() {
             where_clauses.push("locale = $locale");
         }
+        if q.search.is_some() {
+            // Schemaless object → cast to string for substring matching.
+            where_clauses
+                .push("(string::lowercase(slug) CONTAINS $needle OR string::lowercase(<string>data) CONTAINS $needle)");
+        }
         let where_sql = if where_clauses.is_empty() {
             String::new()
         } else {
@@ -364,6 +369,9 @@ impl ContentRepo for SurrealRepo {
         }
         if let Some(l) = q.locale.as_ref() {
             query = query.bind(("locale", l.to_string()));
+        }
+        if let Some(s) = q.search.as_deref() {
+            query = query.bind(("needle", s.to_lowercase()));
         }
         query = query.bind(("limit", limit)).bind(("start", start));
         let mut resp = query.await.map_err(map_err)?.check().map_err(map_err)?;

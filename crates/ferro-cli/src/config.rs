@@ -12,6 +12,10 @@ pub struct FerroConfig {
     pub media: MediaConfig,
     pub auth: AuthConfig,
     pub plugins: PluginConfig,
+    /// Optional outbound webhook subscribers. Each entry registers as a
+    /// `HookHandler` at startup; missing section is treated as empty.
+    #[serde(default)]
+    pub webhooks: Vec<ferro_plugin::WebhookConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

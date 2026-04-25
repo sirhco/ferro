@@ -37,6 +37,8 @@ hyper.workspace = true
 async-graphql.workspace = true
 async-graphql-axum.workspace = true
 
+mime_guess.workspace = true
+
 utoipa.workspace = true
 utoipa-swagger-ui.workspace = true
 

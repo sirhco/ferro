@@ -208,6 +208,14 @@ impl ContentRepo for FsJsonRepo {
                 if q.locale.as_ref().is_some_and(|l| l != &c.locale) {
                     continue;
                 }
+                if let Some(needle) = q.search.as_deref() {
+                    let needle = needle.to_lowercase();
+                    let hay = serde_json::to_string(&c.data).unwrap_or_default().to_lowercase();
+                    let slug_match = c.slug.to_lowercase().contains(&needle);
+                    if !slug_match && !hay.contains(&needle) {
+                        continue;
+                    }
+                }
                 items.push(c);
             }
         }

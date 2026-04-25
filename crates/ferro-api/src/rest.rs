@@ -4,10 +4,13 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum::body::Body;
+use axum::extract::Multipart;
+use axum::response::Response;
 use ferro_auth::{authorize, hash_password, verify_password, AuthContext};
 use ferro_core::{
-    Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, NewContent, Page,
-    Permission, Role, RoleId, Scope, Site, User, UserId,
+    Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, Media, MediaId, MediaKind,
+    NewContent, Page, Permission, Role, RoleId, Scope, Site, User, UserId,
 };
 use ferro_plugin::HookEvent;
 use ferro_storage::schema as schema_migrator;
@@ -54,6 +57,12 @@ pub fn router() -> Router<Arc<AppState>> {
             "/api/v1/roles/{id}",
             get(get_role).patch(update_role).delete(delete_role),
         )
+        .route("/api/v1/media", get(list_media).post(upload_media))
+        .route(
+            "/api/v1/media/{id}",
+            get(get_media).delete(delete_media),
+        )
+        .route("/api/v1/media/{id}/raw", get(get_media_raw))
 }
 
 async fn healthz() -> &'static str {
@@ -75,6 +84,10 @@ struct ListParams {
     status: Option<String>,
     page: Option<u32>,
     per_page: Option<u32>,
+    /// Free-text query. Backends do best-effort substring matching on the
+    /// content's JSON payload; refine to tsvector / SurrealDB `search::` in
+    /// future hardening passes.
+    q: Option<String>,
 }
 
 async fn list_content(
@@ -90,6 +103,7 @@ async fn list_content(
             .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok()),
         page: params.page,
         per_page: params.per_page,
+        search: params.q,
         ..Default::default()
     };
     Ok(Json(state.repo.content().list(q).await?))
@@ -670,4 +684,180 @@ async fn delete_role(
     let id: RoleId = parse_typed_id(&id)?;
     state.repo.users().delete_role(id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Media routes ----------------------------------------------------------
+
+/// List media for the active site.
+async fn list_media(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<Media>>> {
+    let _ = auth; // any authenticated caller can browse; refine via RBAC later.
+    let sites = state.repo.sites().list().await?;
+    let Some(site) = sites.into_iter().next() else {
+        return Ok(Json(Vec::new()));
+    };
+    Ok(Json(state.repo.media().list(site.id).await?))
+}
+
+async fn get_media(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<Json<Media>> {
+    let _ = auth;
+    let id: MediaId = parse_typed_id(&id)?;
+    let m = state.repo.media().get(id).await?.ok_or(ApiError::NotFound)?;
+    Ok(Json(m))
+}
+
+/// Stream the raw bytes of a media file. Useful for previews; production
+/// deployments should configure the media store's `base_url` so clients hit
+/// the CDN/object store directly via [`Media`]'s precomputed URL.
+async fn get_media_raw(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<Response<Body>> {
+    let _ = auth;
+    let id: MediaId = parse_typed_id(&id)?;
+    let meta = state.repo.media().get(id).await?.ok_or(ApiError::NotFound)?;
+    let stream = state
+        .media
+        .get(&meta.key)
+        .await
+        .map_err(|e| match e {
+            ferro_media::MediaError::NotFound => ApiError::NotFound,
+            other => ApiError::Media(other),
+        })?;
+    let body = Body::from_stream(stream);
+    let resp = Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, meta.mime.clone())
+        .header(
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{}\"", meta.filename),
+        )
+        .body(body)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    Ok(resp)
+}
+
+const MAX_UPLOAD_BYTES: usize = 25 * 1024 * 1024; // 25 MiB
+
+/// Multipart upload. Field `file` carries the bytes; optional `alt` populates
+/// `Media.alt` text for images. Stores in the configured media backend, then
+/// records metadata in the repo.
+async fn upload_media(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    mut multipart: Multipart,
+) -> ApiResult<Json<Media>> {
+    let sites = state.repo.sites().list().await?;
+    let site = sites.into_iter().next().ok_or(ApiError::NotFound)?;
+
+    let mut filename: Option<String> = None;
+    let mut mime: Option<String> = None;
+    let mut bytes: Option<Vec<u8>> = None;
+    let mut alt: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("multipart: {e}")))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "file" {
+            filename = field.file_name().map(|s| s.to_string());
+            mime = field.content_type().map(|m| m.to_string());
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::BadRequest(format!("file read: {e}")))?;
+            if data.len() > MAX_UPLOAD_BYTES {
+                return Err(ApiError::BadRequest(format!(
+                    "file exceeds {MAX_UPLOAD_BYTES}-byte limit"
+                )));
+            }
+            bytes = Some(data.to_vec());
+        } else if name == "alt" {
+            let text: String = field
+                .text()
+                .await
+                .map_err(|e| ApiError::BadRequest(format!("alt text: {e}")))?;
+            alt = Some(text);
+        }
+    }
+
+    let bytes = bytes.ok_or_else(|| ApiError::BadRequest("missing `file` field".into()))?;
+    let filename = filename.unwrap_or_else(|| "upload".into());
+    let mime = mime
+        .or_else(|| Some(mime_guess::from_path(&filename).first_or_octet_stream().to_string()))
+        .unwrap();
+    let size = bytes.len() as u64;
+
+    let id = MediaId::new();
+    // Storage key: `<media-id>/<filename>` keeps human-readable names while
+    // ensuring uniqueness without collision-on-rename.
+    let safe_name = sanitize_filename(&filename);
+    let key = format!("{id}/{safe_name}");
+
+    let body_stream =
+        futures::stream::once(async move { Ok::<_, std::io::Error>(bytes::Bytes::from(bytes)) });
+    let body: ferro_media::ByteStream = Box::pin(body_stream);
+    let media_ref = state.media.put(&key, body, &mime, size).await?;
+
+    let now = time::OffsetDateTime::now_utc();
+    let media = Media {
+        id,
+        site_id: site.id,
+        key: media_ref.key.clone(),
+        filename,
+        mime: mime.clone(),
+        size: media_ref.size,
+        width: None,
+        height: None,
+        alt,
+        kind: MediaKind::from_mime(&mime),
+        uploaded_by: Some(auth.user.id),
+        created_at: now,
+    };
+    let saved = state.repo.media().create(media).await?;
+    Ok(Json(saved))
+}
+
+async fn delete_media(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<StatusCode> {
+    require_manage_users(&auth.ctx)?;
+    let id: MediaId = parse_typed_id(&id)?;
+    if let Some(meta) = state.repo.media().get(id).await? {
+        // Best-effort blob removal — metadata delete is the source of truth.
+        let _ = state.media.delete(&meta.key).await;
+    }
+    state.repo.media().delete(id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Strip directory traversal from uploaded filenames. Replaces anything
+/// non-alphanumeric / non-`.-_` with `_`; collapses consecutive underscores.
+fn sanitize_filename(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if cleaned.is_empty() || cleaned.chars().all(|c| c == '.' || c == '_') {
+        "upload".into()
+    } else {
+        cleaned
+    }
 }

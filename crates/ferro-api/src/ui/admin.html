@@ -257,6 +257,7 @@ function render() {
     h("nav", null,
       navBtn("content", "Content"),
       navBtn("types", "Types"),
+      navBtn("media", "Media"),
       navBtn("users", "Users"),
       navBtn("settings", "Settings"),
     ),
@@ -277,6 +278,7 @@ function render() {
   const view = document.getElementById("view");
   if (state.view === "content") renderContent(view);
   else if (state.view === "types") renderTypes(view);
+  else if (state.view === "media") renderMedia(view);
   else if (state.view === "users") renderUsers(view);
   else if (state.view === "settings") renderSettings(view);
 }
@@ -406,22 +408,259 @@ async function deleteContent(c) {
 function renderTypes(view) {
   clear(view);
   view.appendChild(h("h2", null, "Content Types"));
+
+  const newBtn = h("button", { class: "primary", onclick: () => openTypeEditor(null) }, "New type");
+  view.appendChild(h("div", { class: "row", style: { marginBottom: "1rem" } }, newBtn));
+
   const tbl = h("table", null, h("thead", null, h("tr", null,
-    h("th", null, "Name"), h("th", null, "Slug"), h("th", null, "Fields"))));
+    h("th", null, "Name"),
+    h("th", null, "Slug"),
+    h("th", null, "Fields"),
+    h("th", null, ""))));
   const tbody = h("tbody");
   for (const t of state.types) {
     tbody.appendChild(h("tr", null,
       h("td", null, t.name),
       h("td", null, h("code", null, t.slug)),
       h("td", null, (t.fields || []).map(f => f.slug).join(", ")),
+      h("td", null,
+        h("button", { class: "ghost", onclick: () => openTypeEditor(t) }, "Edit"),
+        " ",
+        h("button", { class: "danger", onclick: async () => {
+          if (!confirm(`Delete type ${t.slug}? Existing content stays but is orphaned.`)) return;
+          try {
+            await api("DELETE", `/api/v1/types/${encodeURIComponent(t.slug)}`);
+            state.types = await api("GET", "/api/v1/types");
+            setToast(`Deleted ${t.slug}.`);
+            renderTypes(view);
+          } catch (ex) { setToast(ex.message, "err"); }
+        } }, "Delete"),
+      ),
     ));
   }
   tbl.appendChild(tbody);
   view.appendChild(h("div", { class: "card" }, tbl));
   view.appendChild(h("p", { class: "muted" },
-    "Type creation/editing is exposed at ",
-    h("code", null, "POST /api/v1/types"),
-    " — JSON schema editor lands with the Leptos admin in v0.7."));
+    "Editing a type runs the schema migrator across existing content. ",
+    "Field shape: see ",
+    h("a", { href: "/api/docs", target: "_blank" }, "API docs"),
+    " for the full ", h("code", null, "FieldDef"), " JSON contract."));
+}
+
+const FIELD_PRESETS = [
+  { id: "text", label: "Text", build: (slug, name) => ({
+    id: newFieldId(), slug, name, kind: { type: "text", multiline: false }, required: false, localized: false, unique: false, hidden: false,
+  }) },
+  { id: "richtext", label: "Rich text (Markdown)", build: (slug, name) => ({
+    id: newFieldId(), slug, name, kind: { type: "rich_text", format: "markdown" }, required: false, localized: false, unique: false, hidden: false,
+  }) },
+  { id: "number", label: "Number", build: (slug, name) => ({
+    id: newFieldId(), slug, name, kind: { type: "number", int: false }, required: false, localized: false, unique: false, hidden: false,
+  }) },
+  { id: "boolean", label: "Boolean", build: (slug, name) => ({
+    id: newFieldId(), slug, name, kind: { type: "boolean" }, required: false, localized: false, unique: false, hidden: false,
+  }) },
+  { id: "date", label: "Date", build: (slug, name) => ({
+    id: newFieldId(), slug, name, kind: { type: "date" }, required: false, localized: false, unique: false, hidden: false,
+  }) },
+];
+
+function newFieldId() {
+  // Mint a Crockford ULID-shape so server-side `FieldId::from_str` accepts it.
+  // 26 chars [0-9A-HJKMNP-TV-Z]. We use a simple time-prefix + random padding.
+  const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  let out = "";
+  for (let i = 0; i < 26; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+function openTypeEditor(existing) {
+  const isNew = !existing;
+  const view = document.getElementById("view");
+  clear(view);
+  view.appendChild(h("h2", null, isNew ? "New Content Type" : `Edit ${existing.slug}`));
+
+  const slugIn = h("input", { type: "text", value: existing ? existing.slug : "", placeholder: "post" });
+  const nameIn = h("input", { type: "text", value: existing ? existing.name : "", placeholder: "Post" });
+  const descIn = h("input", { type: "text", value: existing && existing.description ? existing.description : "" });
+  const fieldsArea = h("textarea", null,
+    JSON.stringify(existing ? existing.fields : [], null, 2));
+
+  // Quick-add preset
+  const preset = h("select", null, ...FIELD_PRESETS.map(p => h("option", { value: p.id }, p.label)));
+  const presetSlug = h("input", { type: "text", placeholder: "field slug" });
+  const presetName = h("input", { type: "text", placeholder: "Field name" });
+  const addBtn = h("button", { class: "ghost", onclick: () => {
+    const p = FIELD_PRESETS.find(x => x.id === preset.value);
+    if (!p) return;
+    if (!presetSlug.value || !presetName.value) {
+      setToast("Field slug + name required.", "err"); return;
+    }
+    let arr;
+    try { arr = JSON.parse(fieldsArea.value); }
+    catch { setToast("Fields JSON invalid; fix it before adding.", "err"); return; }
+    arr.push(p.build(presetSlug.value.trim(), presetName.value.trim()));
+    fieldsArea.value = JSON.stringify(arr, null, 2);
+    presetSlug.value = ""; presetName.value = "";
+  } }, "Add field");
+
+  const err = h("p", { class: "err" });
+
+  view.appendChild(h("div", { class: "card" },
+    h("label", null, "Slug", slugIn),
+    h("label", null, "Name", nameIn),
+    h("label", null, "Description (optional)", descIn),
+    h("h3", { style: { marginTop: "1.5rem" } }, "Fields"),
+    h("p", { class: "muted" }, "JSON array of FieldDef. Use the quick-add below for common types."),
+    fieldsArea,
+    h("div", { class: "row", style: { marginTop: ".5rem" } }, preset, presetSlug, presetName, addBtn),
+    err,
+    h("div", { class: "row", style: { marginTop: "1rem" } },
+      h("button", { class: "primary", onclick: async () => {
+        let fields;
+        try { fields = JSON.parse(fieldsArea.value); }
+        catch { err.textContent = "Fields JSON invalid."; return; }
+        if (!Array.isArray(fields)) { err.textContent = "Fields must be a JSON array."; return; }
+        const now = new Date().toISOString();
+        const body = isNew
+          ? {
+              id: newFieldId(),  // placeholder; backend overwrites with site_id-scoped id
+              site_id: state.types[0] ? state.types[0].site_id : "",
+              slug: slugIn.value.trim(),
+              name: nameIn.value.trim(),
+              description: descIn.value.trim() || null,
+              fields,
+              singleton: false,
+              title_field: null,
+              slug_field: null,
+              created_at: now,
+              updated_at: now,
+            }
+          : Object.assign({}, existing, {
+              slug: slugIn.value.trim(),
+              name: nameIn.value.trim(),
+              description: descIn.value.trim() || null,
+              fields,
+              updated_at: now,
+            });
+        try {
+          if (isNew) {
+            await api("POST", "/api/v1/types", body);
+            setToast(`Created ${body.slug}.`);
+          } else {
+            const resp = await api("PATCH", `/api/v1/types/${encodeURIComponent(existing.slug)}`, body);
+            const migrated = (resp && resp.rows_migrated) || 0;
+            setToast(`Saved ${body.slug} · ${migrated} row(s) migrated.`);
+          }
+          state.types = await api("GET", "/api/v1/types");
+          state.view = "types"; render();
+        } catch (ex) { err.textContent = ex.message; }
+      } }, isNew ? "Create" : "Save"),
+      h("button", { class: "ghost", onclick: () => { state.view = "types"; render(); } }, "Cancel"),
+    ),
+  ));
+}
+
+// --- Media view ------------------------------------------------------------
+
+async function uploadFile(file, alt) {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (alt) fd.append("alt", alt);
+  const tok = getToken();
+  const res = await fetch("/api/v1/media", {
+    method: "POST",
+    headers: tok ? { "Authorization": `Bearer ${tok}` } : {},
+    body: fd,
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch { data = text; }
+  if (!res.ok) throw new Error((data && data.message) || `${res.status} ${res.statusText}`);
+  return data;
+}
+
+async function renderMedia(view) {
+  clear(view);
+  view.appendChild(h("h2", null, "Media"));
+
+  // Upload card
+  const fileInput = h("input", { type: "file" });
+  const altInput = h("input", { type: "text", placeholder: "alt text (images)" });
+  const uploadStatus = h("p");
+  const uploadBtn = h("button", { class: "primary", onclick: async () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) { uploadStatus.className = "err"; uploadStatus.textContent = "Pick a file."; return; }
+    uploadStatus.className = "muted"; uploadStatus.textContent = `Uploading ${f.name}…`;
+    try {
+      await uploadFile(f, altInput.value || null);
+      uploadStatus.className = "ok"; uploadStatus.textContent = `Uploaded ${f.name}.`;
+      fileInput.value = ""; altInput.value = "";
+      renderMedia(view);
+    } catch (ex) {
+      uploadStatus.className = "err"; uploadStatus.textContent = ex.message;
+    }
+  } }, "Upload");
+  view.appendChild(h("div", { class: "card" },
+    h("h3", { style: { marginTop: 0 } }, "Upload"),
+    h("label", null, "File", fileInput),
+    h("label", null, "Alt text (optional)", altInput),
+    h("p", null, uploadBtn),
+    uploadStatus,
+  ));
+
+  // List
+  const list = h("div", { class: "card" }, h("p", { class: "muted" }, "Loading…"));
+  view.appendChild(list);
+  try {
+    const media = await api("GET", "/api/v1/media");
+    clear(list);
+    if (!media.length) {
+      list.appendChild(h("p", { class: "muted" }, "No media yet."));
+      return;
+    }
+    const grid = h("div", { style: { display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" } });
+    for (const m of media) {
+      const isImage = m.kind === "image";
+      const tile = h("div", {
+        style: {
+          border: "1px solid var(--border)", borderRadius: "6px", padding: ".5rem",
+          display: "flex", flexDirection: "column", gap: ".25rem", fontSize: ".8rem",
+        }
+      });
+      if (isImage) {
+        tile.appendChild(h("img", {
+          src: `/api/v1/media/${m.id}/raw`,
+          alt: m.alt || m.filename,
+          style: { width: "100%", height: "120px", objectFit: "cover", borderRadius: "4px" },
+        }));
+      } else {
+        tile.appendChild(h("div", {
+          style: {
+            height: "120px", display: "grid", placeItems: "center",
+            background: "var(--bg)", borderRadius: "4px", color: "var(--muted)",
+          }
+        }, m.kind));
+      }
+      tile.appendChild(h("div", { style: { fontWeight: 600, wordBreak: "break-all" } }, m.filename));
+      tile.appendChild(h("div", { class: "muted" }, `${(m.size/1024).toFixed(1)} KiB · ${m.mime}`));
+      tile.appendChild(h("div", { class: "row", style: { marginTop: "auto" } },
+        h("a", { href: `/api/v1/media/${m.id}/raw`, target: "_blank", class: "ghost" }, "View"),
+        h("button", { class: "danger", onclick: async () => {
+          if (!confirm(`Delete ${m.filename}?`)) return;
+          try {
+            await api("DELETE", `/api/v1/media/${m.id}`);
+            renderMedia(view);
+          } catch (ex) { setToast(ex.message, "err"); }
+        } }, "Delete"),
+      ));
+      grid.appendChild(tile);
+    }
+    list.appendChild(grid);
+  } catch (ex) {
+    clear(list);
+    list.appendChild(h("p", { class: "err" }, ex.message));
+  }
 }
 
 // --- Users view ------------------------------------------------------------

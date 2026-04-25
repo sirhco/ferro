@@ -1,0 +1,10 @@
+{
+  "id": "01KQ1K9KR8JBGSQDV3RJA08C21",
+  "name": "admin",
+  "description": "Full system access.",
+  "permissions": [
+    {
+      "action": "admin"
+    }
+  ]
+}

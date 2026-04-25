@@ -510,6 +510,15 @@ impl ContentRepo for PgRepo {
             where_clauses.push(format!("locale = ${idx}"));
             idx += 1;
         }
+        let search = q.search.as_deref().map(|s| format!("%{}%", s.to_lowercase()));
+        if search.is_some() {
+            // Match against either the slug or the full JSON payload (lowered).
+            // Adequate for the v0.x roadmap; tsvector lands with v0.7 search.
+            where_clauses.push(format!(
+                "(LOWER(slug) LIKE ${idx} OR LOWER(data::text) LIKE ${idx})"
+            ));
+            idx += 1;
+        }
 
         if !where_clauses.is_empty() {
             let joined = where_clauses.join(" AND ");
@@ -524,6 +533,7 @@ impl ContentRepo for PgRepo {
             type_id: &'a Option<String>,
             status: &'a Option<&'a str>,
             locale: &'a Option<String>,
+            search: &'a Option<String>,
         ) -> sqlx::query::Query<'a, sqlx::Postgres, sqlx::postgres::PgArguments> {
             if let Some(s) = site_id {
                 q = q.bind(s);
@@ -537,19 +547,22 @@ impl ContentRepo for PgRepo {
             if let Some(l) = locale {
                 q = q.bind(l);
             }
+            if let Some(s) = search {
+                q = q.bind(s);
+            }
             q
         }
 
         let count_row = {
             let q = sqlx::query(&count_sql);
-            let q = bind_filters(q, &site_id, &resolved_type_id, &status, &locale);
+            let q = bind_filters(q, &site_id, &resolved_type_id, &status, &locale, &search);
             q.fetch_one(&self.pool).await.map_err(map_sqlx)?
         };
         let total: i64 = count_row.try_get(0).map_err(map_sqlx)?;
 
         let rows = {
             let q = sqlx::query(&sql);
-            let q = bind_filters(q, &site_id, &resolved_type_id, &status, &locale);
+            let q = bind_filters(q, &site_id, &resolved_type_id, &status, &locale, &search);
             let q = q.bind(limit).bind(offset);
             q.fetch_all(&self.pool).await.map_err(map_sqlx)?
         };

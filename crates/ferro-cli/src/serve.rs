@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Args as ClapArgs;
 use ferro_api::{AppState, AuthOptions};
 use ferro_auth::{AuthService, JwtManager, MemorySessionStore};
-use ferro_plugin::{HookRegistry, LoggingHook};
+use ferro_plugin::{HookRegistry, LoggingHook, WebhookHook};
 
 use crate::config::FerroConfig;
 
@@ -32,6 +32,15 @@ pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
 
     let hooks = HookRegistry::new();
     hooks.register(Arc::new(LoggingHook)).await;
+    for webhook_cfg in &cfg.webhooks {
+        match WebhookHook::new(webhook_cfg.clone()) {
+            Ok(h) => {
+                hooks.register(Arc::new(h)).await;
+                tracing::info!(target: "ferro::webhook", url = %webhook_cfg.url, "registered");
+            }
+            Err(e) => tracing::warn!(target: "ferro::webhook", url = %webhook_cfg.url, error = %e, "failed to register"),
+        }
+    }
 
     let options = AuthOptions {
         allow_public_signup: cfg.auth.allow_public_signup,

@@ -23,3 +23,13 @@ futures.workspace = true
 
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
+
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+axum = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+time = { workspace = true }

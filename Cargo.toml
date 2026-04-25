@@ -52,7 +52,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-opentelemetry = "0.25"
 
 # --- http / axum / leptos ---
-axum = { version = "0.8", features = ["macros", "ws"] }
+axum = { version = "0.8", features = ["macros", "ws", "multipart"] }
 axum-extra = { version = "0.10", features = ["cookie", "cookie-private"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "compression-full", "fs", "set-header", "cors"] }
@@ -117,6 +117,9 @@ darling = "0.20"
 # --- compression ---
 brotli = "7"
 flate2 = "1"
+hex = "0.4"
+hmac = "0.12"
+sha2 = "0.10"
 
 # --- encoding ---
 base64 = "0.22"

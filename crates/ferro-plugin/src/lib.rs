@@ -13,6 +13,7 @@ pub mod host;
 pub mod manifest;
 pub mod registry;
 pub mod runtime;
+pub mod webhook;
 
 pub use capability::Capability;
 pub use error::{PluginError, PluginResult};
@@ -21,3 +22,4 @@ pub use host::HostContext;
 pub use manifest::PluginManifest;
 pub use registry::PluginRegistry;
 pub use runtime::{PluginHandle, PluginRuntime, RuntimeConfig};
+pub use webhook::{WebhookConfig, WebhookHook};
