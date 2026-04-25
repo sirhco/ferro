@@ -9,8 +9,9 @@
 
 use async_trait::async_trait;
 use ferro_core::{
-    Content, ContentId, ContentPatch, ContentQuery, ContentType, ContentTypeId, Locale, Media,
-    MediaId, NewContent, Page, Role, RoleId, Site, SiteId, Status, User, UserId,
+    Content, ContentId, ContentPatch, ContentQuery, ContentType, ContentTypeId, ContentVersion,
+    ContentVersionId, Locale, Media, MediaId, NewContent, Page, Role, RoleId, Site, SiteId,
+    Status, User, UserId,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -188,6 +189,9 @@ impl Repository for SurrealRepo {
         self
     }
     fn media(&self) -> &dyn MediaMetaRepo {
+        self
+    }
+    fn versions(&self) -> &dyn crate::repo::ContentVersionRepo {
         self
     }
 
@@ -557,6 +561,40 @@ fn status_str(s: Status) -> &'static str {
         Status::Draft => "draft",
         Status::Published => "published",
         Status::Archived => "archived",
+    }
+}
+
+#[async_trait]
+impl crate::repo::ContentVersionRepo for SurrealRepo {
+    async fn list(&self, content_id: ContentId) -> StorageResult<Vec<ContentVersion>> {
+        // `content_id` is bound as the bare ULID (transparent serde shape) to
+        // match how it lands in the row payload.
+        let mut resp = self
+            .db
+            .query(
+                "SELECT * OMIT id FROM content_version \
+                 WHERE content_id = $cid ORDER BY captured_at DESC",
+            )
+            .bind(("cid", content_id.0.to_string()))
+            .await
+            .map_err(map_err)?
+            .check()
+            .map_err(map_err)?;
+        let rows: Vec<serde_json::Value> = resp.take(0).map_err(map_err)?;
+        rows.into_iter().map(strip_and_decode).collect()
+    }
+
+    async fn get(
+        &self,
+        id: ContentVersionId,
+    ) -> StorageResult<Option<ContentVersion>> {
+        self.get_one("content_version", &id.to_string()).await
+    }
+
+    async fn create(&self, version: ContentVersion) -> StorageResult<ContentVersion> {
+        self.upsert_record("content_version", &version.id.to_string(), &version)
+            .await?;
+        Ok(version)
     }
 }
 

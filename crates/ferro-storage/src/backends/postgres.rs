@@ -253,6 +253,9 @@ impl Repository for PgRepo {
     fn media(&self) -> &dyn MediaMetaRepo {
         self
     }
+    fn versions(&self) -> &dyn crate::repo::ContentVersionRepo {
+        self
+    }
     async fn migrate(&self) -> StorageResult<()> {
         sqlx::migrate!("./migrations/postgres")
             .run(&self.pool)
@@ -928,5 +931,82 @@ impl MediaMetaRepo for PgRepo {
         .await
         .map_err(map_sqlx)?;
         Ok(m)
+    }
+}
+
+// --- ContentVersionRepo ---
+
+fn row_to_version(row: &sqlx::postgres::PgRow) -> StorageResult<ContentVersion> {
+    let id: String = row.try_get("id").map_err(map_sqlx)?;
+    let content_id: String = row.try_get("content_id").map_err(map_sqlx)?;
+    let site_id: String = row.try_get("site_id").map_err(map_sqlx)?;
+    let type_id: String = row.try_get("type_id").map_err(map_sqlx)?;
+    let locale: String = row.try_get("locale").map_err(map_sqlx)?;
+    let status: String = row.try_get("status").map_err(map_sqlx)?;
+    let data: serde_json::Value = row.try_get("data").map_err(map_sqlx)?;
+    let author_id: Option<String> = row.try_get("author_id").map_err(map_sqlx)?;
+    let parent: Option<String> = row.try_get("parent_version").map_err(map_sqlx)?;
+    Ok(ContentVersion {
+        id: parse_id(&id)?,
+        content_id: parse_id(&content_id)?,
+        site_id: parse_id(&site_id)?,
+        type_id: parse_id(&type_id)?,
+        slug: row.try_get("slug").map_err(map_sqlx)?,
+        locale: Locale::new(locale).map_err(|e| StorageError::Backend(e.to_string()))?,
+        status: parse_status(&status)?,
+        data: serde_json::from_value(data).map_err(map_json)?,
+        author_id: author_id.map(|s| parse_id(&s)).transpose()?,
+        captured_at: row.try_get("captured_at").map_err(map_sqlx)?,
+        parent_version: parent.map(|s| parse_id(&s)).transpose()?,
+    })
+}
+
+#[async_trait]
+impl crate::repo::ContentVersionRepo for PgRepo {
+    async fn list(&self, content_id: ContentId) -> StorageResult<Vec<ContentVersion>> {
+        let rows = sqlx::query(
+            "SELECT * FROM content_versions WHERE content_id = $1 ORDER BY captured_at DESC",
+        )
+        .bind(content_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+        rows.iter().map(row_to_version).collect()
+    }
+
+    async fn get(&self, id: ContentVersionId) -> StorageResult<Option<ContentVersion>> {
+        let row = sqlx::query("SELECT * FROM content_versions WHERE id = $1")
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_sqlx)?;
+        row.as_ref().map(row_to_version).transpose()
+    }
+
+    async fn create(&self, version: ContentVersion) -> StorageResult<ContentVersion> {
+        let data = serde_json::to_value(&version.data).map_err(map_json)?;
+        sqlx::query(
+            r#"
+            INSERT INTO content_versions
+                (id, content_id, site_id, type_id, slug, locale, status, data,
+                 author_id, captured_at, parent_version)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            "#,
+        )
+        .bind(version.id.to_string())
+        .bind(version.content_id.to_string())
+        .bind(version.site_id.to_string())
+        .bind(version.type_id.to_string())
+        .bind(&version.slug)
+        .bind(version.locale.to_string())
+        .bind(status_str(version.status))
+        .bind(&data)
+        .bind(version.author_id.map(|a| a.to_string()))
+        .bind(version.captured_at)
+        .bind(version.parent_version.map(|p| p.to_string()))
+        .execute(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+        Ok(version)
     }
 }

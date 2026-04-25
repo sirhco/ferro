@@ -26,4 +26,8 @@ DEFINE INDEX role_id_str ON role FIELDS id_str UNIQUE;
 DEFINE TABLE media SCHEMALESS;
 DEFINE INDEX media_id_str ON media FIELDS id_str UNIQUE;
 
+DEFINE TABLE content_version SCHEMALESS;
+DEFINE INDEX content_version_id_str ON content_version FIELDS id_str UNIQUE;
+DEFINE INDEX content_version_by_content ON content_version FIELDS content_id, captured_at;
+
 COMMIT;

@@ -420,6 +420,46 @@ async function openContentEditor(existing) {
   const view = document.getElementById("view");
   clear(view);
   view.appendChild(h("h2", null, isNew ? `New ${ty.name}` : `Edit ${ty.name} · ${existing.slug}`));
+  if (!isNew) {
+    // Versions panel — async-loaded after the form so editors don't wait.
+    const panel = h("div", { class: "card" }, h("h3", { style: { marginTop: 0 } }, "Versions"));
+    const list = h("div", { class: "muted" }, "Loading…");
+    panel.appendChild(list);
+    view.appendChild(panel);
+    api("GET", `/api/v1/content/${encodeURIComponent(ty.slug)}/${encodeURIComponent(existing.slug)}/versions`)
+      .then(versions => {
+        if (!versions.length) {
+          list.replaceWith(h("p", { class: "muted" }, "No prior versions yet."));
+          return;
+        }
+        const tbl = h("table", null,
+          h("thead", null, h("tr", null,
+            h("th", null, "Captured"),
+            h("th", null, "Status"),
+            h("th", null, "Slug"),
+            h("th", null, "")
+          )));
+        const tbody = h("tbody");
+        for (const v of versions) {
+          tbody.appendChild(h("tr", null,
+            h("td", { class: "muted" }, new Date(v.captured_at).toLocaleString()),
+            h("td", null, h("span", { class: "pill" }, v.status || "draft")),
+            h("td", null, v.slug),
+            h("td", null, h("button", { class: "ghost", onclick: async () => {
+              if (!confirm(`Restore version captured at ${new Date(v.captured_at).toLocaleString()}? Current state will be snapshotted first.`)) return;
+              try {
+                await api("POST", `/api/v1/content/${encodeURIComponent(ty.slug)}/${encodeURIComponent(existing.slug)}/versions/${v.id}/restore`);
+                setToast("Restored.");
+                state.view = "content"; render();
+              } catch (ex) { setToast(ex.message, "err"); }
+            } }, "Restore")),
+          ));
+        }
+        tbl.appendChild(tbody);
+        list.replaceWith(tbl);
+      })
+      .catch(ex => list.replaceWith(h("p", { class: "err" }, ex.message)));
+  }
   view.appendChild(h("div", { class: "card" },
     h("label", null, "Slug", slug),
     h("label", null, "Data (JSON)", dataArea),
