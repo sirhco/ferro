@@ -39,7 +39,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .layer(cors)
         .layer(trace)
         .with_state(state)
-        // Swagger UI is state-less (`Router<()>`) so we merge it after the
-        // main router has finalized its `Arc<AppState>` binding.
+        // Stateless routes mounted after `with_state` so they don't need to
+        // satisfy the AppState binding: Swagger UI assets + the operator HTML
+        // (landing page + minimal admin SPA).
         .merge(openapi::swagger_ui_router())
+        .merge(ui::router())
 }
