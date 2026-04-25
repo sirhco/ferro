@@ -4,10 +4,10 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use ferro_auth::{authorize, AuthContext};
+use ferro_auth::{authorize, hash_password, AuthContext};
 use ferro_core::{
     Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, NewContent, Page,
-    Permission, Scope, Site, User,
+    Permission, Role, RoleId, Scope, Site, User, UserId,
 };
 use ferro_plugin::HookEvent;
 use ferro_storage::schema as schema_migrator;
@@ -41,6 +41,16 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/v1/types/{slug}",
             get(get_type).patch(update_type).delete(delete_type),
+        )
+        .route("/api/v1/users", get(list_users).post(create_user))
+        .route(
+            "/api/v1/users/{id}",
+            get(get_user).patch(update_user).delete(delete_user),
+        )
+        .route("/api/v1/roles", get(list_roles).post(create_role))
+        .route(
+            "/api/v1/roles/{id}",
+            get(get_role).patch(update_role).delete(delete_role),
         )
 }
 
@@ -202,7 +212,7 @@ async fn login(
         .jwt
         .mint(user.id, role_names, JWT_TTL_SECS)
         .map_err(ApiError::Auth)?;
-    Ok(Json(LoginResponse { token, user }))
+    Ok(Json(LoginResponse { token, user: user.redacted() }))
 }
 
 async fn logout(State(_state): State<Arc<AppState>>, _auth: AuthUser) -> ApiResult<StatusCode> {
@@ -212,7 +222,7 @@ async fn logout(State(_state): State<Arc<AppState>>, _auth: AuthUser) -> ApiResu
 }
 
 async fn me(auth: AuthUser) -> Json<User> {
-    Json(auth.user)
+    Json(auth.user.redacted())
 }
 
 async fn resolve_type(state: &AppState, type_slug: &str) -> ApiResult<(Site, ContentType)> {
@@ -330,5 +340,245 @@ async fn delete_type(
     require_manage_schema(&auth.ctx)?;
     let (_site, ty) = resolve_type(&state, &slug).await?;
     state.repo.types().delete(ty.id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn require_manage_users(ctx: &AuthContext) -> ApiResult<()> {
+    authorize(ctx, Permission::ManageUsers)
+        .map_err(|_| ApiError::Forbidden("user management denied".into()))
+}
+
+fn parse_typed_id<T: std::str::FromStr>(s: &str) -> ApiResult<T>
+where
+    T::Err: std::fmt::Display,
+{
+    s.parse::<T>()
+        .map_err(|e| ApiError::BadRequest(format!("invalid id `{s}`: {e}")))
+}
+
+// --- User-management routes ---
+
+#[derive(Debug, Deserialize)]
+struct NewUserBody {
+    email: String,
+    handle: String,
+    #[serde(default)]
+    display_name: Option<String>,
+    /// Plaintext password — hashed with argon2id before storage. Empty string
+    /// or absent value creates a passwordless user (e.g. SSO-only).
+    #[serde(default)]
+    password: Option<String>,
+    #[serde(default)]
+    roles: Vec<RoleId>,
+    #[serde(default = "default_active")]
+    active: bool,
+}
+
+fn default_active() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize)]
+struct UserPatchBody {
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    handle: Option<String>,
+    #[serde(default)]
+    display_name: Option<Option<String>>,
+    /// Setting to `Some("...")` rotates the password. `None` leaves the hash
+    /// untouched.
+    #[serde(default)]
+    password: Option<String>,
+    #[serde(default)]
+    roles: Option<Vec<RoleId>>,
+    #[serde(default)]
+    active: Option<bool>,
+}
+
+async fn list_users(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<User>>> {
+    require_manage_users(&auth.ctx)?;
+    let users = state
+        .repo
+        .users()
+        .list()
+        .await?
+        .into_iter()
+        .map(User::redacted)
+        .collect();
+    Ok(Json(users))
+}
+
+async fn create_user(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(body): Json<NewUserBody>,
+) -> ApiResult<Json<User>> {
+    require_manage_users(&auth.ctx)?;
+    if state.repo.users().by_email(&body.email).await?.is_some() {
+        return Err(ApiError::BadRequest("email already in use".into()));
+    }
+    let password_hash = match body.password.as_deref() {
+        Some(p) if !p.is_empty() => Some(hash_password(p).map_err(ApiError::Auth)?),
+        _ => None,
+    };
+    let user = User {
+        id: UserId::new(),
+        email: body.email,
+        handle: body.handle,
+        display_name: body.display_name,
+        password_hash,
+        roles: body.roles,
+        active: body.active,
+        created_at: time::OffsetDateTime::now_utc(),
+        last_login: None,
+    };
+    Ok(Json(state.repo.users().upsert(user).await?.redacted()))
+}
+
+async fn get_user(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<Json<User>> {
+    require_manage_users(&auth.ctx)?;
+    let id: UserId = parse_typed_id(&id)?;
+    let user = state.repo.users().get(id).await?.ok_or(ApiError::NotFound)?;
+    Ok(Json(user.redacted()))
+}
+
+async fn update_user(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+    Json(patch): Json<UserPatchBody>,
+) -> ApiResult<Json<User>> {
+    require_manage_users(&auth.ctx)?;
+    let id: UserId = parse_typed_id(&id)?;
+    let mut user = state.repo.users().get(id).await?.ok_or(ApiError::NotFound)?;
+    if let Some(email) = patch.email {
+        user.email = email;
+    }
+    if let Some(handle) = patch.handle {
+        user.handle = handle;
+    }
+    if let Some(display) = patch.display_name {
+        user.display_name = display;
+    }
+    if let Some(password) = patch.password {
+        if !password.is_empty() {
+            user.password_hash = Some(hash_password(&password).map_err(ApiError::Auth)?);
+        }
+    }
+    if let Some(roles) = patch.roles {
+        user.roles = roles;
+    }
+    if let Some(active) = patch.active {
+        user.active = active;
+    }
+    Ok(Json(state.repo.users().upsert(user).await?.redacted()))
+}
+
+async fn delete_user(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<StatusCode> {
+    require_manage_users(&auth.ctx)?;
+    let id: UserId = parse_typed_id(&id)?;
+    if id == auth.user.id {
+        return Err(ApiError::BadRequest("cannot delete self".into()));
+    }
+    state.repo.users().delete(id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Role-management routes ---
+
+#[derive(Debug, Deserialize)]
+struct NewRoleBody {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    permissions: Vec<Permission>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RolePatchBody {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    description: Option<Option<String>>,
+    #[serde(default)]
+    permissions: Option<Vec<Permission>>,
+}
+
+async fn list_roles(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<Role>>> {
+    require_manage_users(&auth.ctx)?;
+    Ok(Json(state.repo.users().list_roles().await?))
+}
+
+async fn create_role(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(body): Json<NewRoleBody>,
+) -> ApiResult<Json<Role>> {
+    require_manage_users(&auth.ctx)?;
+    let role = Role {
+        id: RoleId::new(),
+        name: body.name,
+        description: body.description,
+        permissions: body.permissions,
+    };
+    Ok(Json(state.repo.users().upsert_role(role).await?))
+}
+
+async fn get_role(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<Json<Role>> {
+    require_manage_users(&auth.ctx)?;
+    let id: RoleId = parse_typed_id(&id)?;
+    let role = state.repo.users().get_role(id).await?.ok_or(ApiError::NotFound)?;
+    Ok(Json(role))
+}
+
+async fn update_role(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+    Json(patch): Json<RolePatchBody>,
+) -> ApiResult<Json<Role>> {
+    require_manage_users(&auth.ctx)?;
+    let id: RoleId = parse_typed_id(&id)?;
+    let mut role = state.repo.users().get_role(id).await?.ok_or(ApiError::NotFound)?;
+    if let Some(name) = patch.name {
+        role.name = name;
+    }
+    if let Some(desc) = patch.description {
+        role.description = desc;
+    }
+    if let Some(perms) = patch.permissions {
+        role.permissions = perms;
+    }
+    Ok(Json(state.repo.users().upsert_role(role).await?))
+}
+
+async fn delete_role(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> ApiResult<StatusCode> {
+    require_manage_users(&auth.ctx)?;
+    let id: RoleId = parse_typed_id(&id)?;
+    state.repo.users().delete_role(id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

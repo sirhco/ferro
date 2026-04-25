@@ -803,6 +803,15 @@ impl UserRepo for PgRepo {
         .map_err(map_sqlx)?;
         Ok(role)
     }
+
+    async fn delete_role(&self, id: RoleId) -> StorageResult<()> {
+        sqlx::query("DELETE FROM roles WHERE id = $1")
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(map_sqlx)?;
+        Ok(())
+    }
 }
 
 // --- MediaMetaRepo ---

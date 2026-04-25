@@ -93,6 +93,7 @@ impl UserRepo for FsMarkdownRepo {
     async fn get_role(&self, _id: RoleId) -> StorageResult<Option<Role>> { tm!() }
     async fn list_roles(&self) -> StorageResult<Vec<Role>> { tm!() }
     async fn upsert_role(&self, _r: Role) -> StorageResult<Role> { tm!() }
+    async fn delete_role(&self, _id: RoleId) -> StorageResult<()> { tm!() }
 }
 
 #[async_trait]

@@ -330,6 +330,13 @@ impl UserRepo for FsJsonRepo {
         Self::write(&self.path("roles", &role.id.to_string()), &role).await?;
         Ok(role)
     }
+    async fn delete_role(&self, id: RoleId) -> StorageResult<()> {
+        let p = self.path("roles", &id.to_string());
+        if p.exists() {
+            fs::remove_file(p).await?;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]

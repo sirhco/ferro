@@ -502,6 +502,10 @@ impl UserRepo for SurrealRepo {
         self.upsert_record("role", &role.id.to_string(), &role).await?;
         Ok(role)
     }
+
+    async fn delete_role(&self, id: RoleId) -> StorageResult<()> {
+        self.delete_record("role", &id.to_string()).await
+    }
 }
 
 // --- MediaMetaRepo ---

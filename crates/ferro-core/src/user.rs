@@ -10,13 +10,18 @@ mod zeroize_hack {
 
 use crate::id::{RoleId, UserId};
 
+/// Persisted user record. Round-trips through serde with `password_hash`
+/// included so storage backends can preserve the hash. **API layers must call
+/// [`User::redact_secrets`] before returning a `User` over the wire** — there
+/// is no automatic skip-on-serialize because doing so would silently strip the
+/// hash on every storage write too.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: UserId,
     pub email: String,
     pub handle: String,
     pub display_name: Option<String>,
-    #[serde(skip_serializing)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password_hash: Option<ZeroizeHash>,
     pub roles: Vec<RoleId>,
     #[serde(default)]
@@ -31,5 +36,19 @@ impl User {
     #[must_use]
     pub fn is_active(&self) -> bool {
         self.active
+    }
+
+    /// Drop secrets that must never leave the API boundary (currently just
+    /// the password hash). Call this on every code path that returns a
+    /// `User` to a client — REST handlers, GraphQL resolvers, export bundles.
+    pub fn redact_secrets(&mut self) {
+        self.password_hash = None;
+    }
+
+    /// Convenience: return a redacted clone.
+    #[must_use]
+    pub fn redacted(mut self) -> Self {
+        self.redact_secrets();
+        self
     }
 }

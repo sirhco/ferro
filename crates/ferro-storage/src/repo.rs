@@ -68,6 +68,7 @@ pub trait UserRepo: Send + Sync {
     async fn get_role(&self, id: RoleId) -> StorageResult<Option<Role>>;
     async fn list_roles(&self) -> StorageResult<Vec<Role>>;
     async fn upsert_role(&self, role: Role) -> StorageResult<Role>;
+    async fn delete_role(&self, id: RoleId) -> StorageResult<()>;
 }
 
 #[async_trait]
