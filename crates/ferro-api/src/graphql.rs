@@ -9,9 +9,8 @@ use axum::http::HeaderMap;
 use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
 use axum::Router;
-use futures::Stream;
+use futures::stream::{Stream, StreamExt as _};
 use tokio_stream::wrappers::BroadcastStream;
-use tokio_stream::StreamExt as _;
 use ferro_auth::authorize;
 use ferro_core::{
     ContentPatch, ContentType, ContentTypeId, FieldValue, NewContent, Permission, Scope, Site,
@@ -233,19 +232,50 @@ pub struct SubscriptionRoot;
 
 #[Subscription]
 impl SubscriptionRoot {
-    /// Live stream of content + schema events. Subscribers see every mutation
-    /// fan-out from the in-process [`ferro_plugin::HookRegistry`]; lagged
-    /// receivers skip ahead silently.
+    /// Live stream of content + schema events.
+    ///
+    /// Auth comes from `connection_init` (see [`subscription_handler`]); each
+    /// emitted event is gated against the caller's `AuthContext` so a
+    /// subscriber only observes events on content types they can `Read`.
+    /// Lagged receivers skip ahead silently.
     async fn content_changes<'ctx>(
         &self,
         ctx: &'ctx Context<'_>,
     ) -> async_graphql::Result<impl Stream<Item = ContentEventNode> + 'ctx> {
         let state = ctx.data::<Arc<AppState>>()?;
+        let auth = ctx
+            .data_opt::<AuthUser>()
+            .ok_or_else(|| async_graphql::Error::new("unauthenticated"))?;
+        let auth_ctx = auth.ctx.clone();
         let rx = state.hooks.subscribe();
-        Ok(BroadcastStream::new(rx)
-            .filter_map(|res| res.ok())
-            .map(|evt| ContentEventNode::from(&evt)))
+        Ok(BroadcastStream::new(rx).filter_map(move |res| {
+            let auth_ctx = auth_ctx.clone();
+            async move {
+                let evt = res.ok()?;
+                if user_can_read_event(&auth_ctx, &evt) {
+                    Some(ContentEventNode::from(&evt))
+                } else {
+                    None
+                }
+            }
+        }))
     }
+}
+
+/// Whether `ctx` has `Read` permission on the content type referenced by
+/// `evt`. `TypeMigrated` requires `ManageSchema` instead of `Read`.
+pub(crate) fn user_can_read_event(ctx: &ferro_auth::AuthContext, evt: &HookEvent) -> bool {
+    let type_id = match evt {
+        HookEvent::ContentCreated { content, .. }
+        | HookEvent::ContentPublished { content, .. } => content.type_id,
+        HookEvent::ContentUpdated { after, .. } => after.type_id,
+        HookEvent::ContentDeleted { type_id, .. } => *type_id,
+        HookEvent::TypeMigrated { .. } => {
+            return ferro_auth::authorize(ctx, Permission::ManageSchema).is_ok();
+        }
+        _ => return false,
+    };
+    ferro_auth::authorize(ctx, Permission::Read(Scope::Type { id: type_id })).is_ok()
 }
 
 pub struct Query;

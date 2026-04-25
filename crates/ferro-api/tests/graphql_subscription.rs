@@ -215,6 +215,142 @@ async fn graphql_subscription_emits_content_created() {
 }
 
 #[tokio::test]
+async fn graphql_subscription_drops_events_on_unauthorized_types() {
+    let (_tmp, state, ty) = fixture().await;
+
+    // Seed a second content type the test user has NO permission on.
+    let now = OffsetDateTime::now_utc();
+    let other = ContentType {
+        id: ferro_core::ContentTypeId::new(),
+        site_id: ty.site_id,
+        slug: "secret".into(),
+        name: "Secret".into(),
+        description: None,
+        fields: vec![],
+        singleton: false,
+        title_field: None,
+        slug_field: None,
+        created_at: now,
+        updated_at: now,
+    };
+    state.repo.types().upsert(other.clone()).await.unwrap();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let base_http = format!("http://{addr}");
+    let app = ferro_api::router(state.clone());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let token = login_token(&base_http).await;
+
+    let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
+    req.headers_mut().insert(
+        "Sec-WebSocket-Protocol",
+        "graphql-transport-ws".parse().unwrap(),
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
+
+    ws.send(Message::Text(
+        json!({ "type": "connection_init", "payload": { "token": token } })
+            .to_string()
+            .into(),
+    ))
+    .await
+    .unwrap();
+    let ack = next_text(&mut ws).await;
+    assert_eq!(ack["type"], "connection_ack");
+
+    ws.send(Message::Text(
+        json!({
+            "id": "1",
+            "type": "subscribe",
+            "payload": { "query": "subscription { contentChanges { kind typeSlug } }" }
+        })
+        .to_string()
+        .into(),
+    ))
+    .await
+    .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Dispatch one event the user CAN read (post) and one they cannot (secret).
+    use ferro_core::{Content as Ce, ContentId as Cid, FieldValue as Fv, Locale, Status};
+    use std::collections::BTreeMap as Map;
+    let now = OffsetDateTime::now_utc();
+    let permitted = Ce {
+        id: Cid::new(),
+        site_id: ty.site_id,
+        type_id: ty.id,
+        slug: "ok".into(),
+        locale: Locale::default(),
+        status: Status::Draft,
+        data: {
+            let mut m = Map::new();
+            m.insert("title".into(), Fv::String("ok".into()));
+            m
+        },
+        author_id: None,
+        created_at: now,
+        updated_at: now,
+        published_at: None,
+    };
+    let blocked = Ce {
+        id: Cid::new(),
+        site_id: other.site_id,
+        type_id: other.id,
+        slug: "blocked".into(),
+        locale: Locale::default(),
+        status: Status::Draft,
+        data: Map::new(),
+        author_id: None,
+        created_at: now,
+        updated_at: now,
+        published_at: None,
+    };
+    state
+        .hooks
+        .dispatch(ferro_plugin::HookEvent::ContentCreated {
+            content: blocked,
+            type_slug: Some(other.slug.clone()),
+        })
+        .await;
+    state
+        .hooks
+        .dispatch(ferro_plugin::HookEvent::ContentCreated {
+            content: permitted,
+            type_slug: Some(ty.slug.clone()),
+        })
+        .await;
+
+    // The very first content.created we observe must be the permitted one;
+    // the blocked event should never surface, even though it was dispatched
+    // first.
+    let mut saw_permitted = false;
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while std::time::Instant::now() < deadline {
+        let frame = tokio::time::timeout(Duration::from_millis(500), next_text(&mut ws)).await;
+        let Ok(msg) = frame else { continue };
+        if msg["type"] == "next" {
+            let payload = &msg["payload"]["data"]["contentChanges"];
+            assert_ne!(
+                payload["typeSlug"], "secret",
+                "leaked event for unauthorized type: {payload}"
+            );
+            if payload["kind"] == "content.created" && payload["typeSlug"] == "post" {
+                saw_permitted = true;
+                break;
+            }
+        }
+    }
+    assert!(saw_permitted, "did not receive the permitted event");
+
+    let _ = ws.close(None).await;
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
 async fn graphql_subscription_rejects_missing_token() {
     let (_tmp, state, _ty) = fixture().await;
 

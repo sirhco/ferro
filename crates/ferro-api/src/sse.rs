@@ -46,38 +46,56 @@ async fn events(
     Query(params): Query<EventQuery>,
     headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
-    // Auth: prefer Authorization header; fall back to ?token=. Reject if
-    // neither is present or the token is invalid.
-    if AuthUser::try_from_headers(&state, &headers).await?.is_none() {
-        let Some(token) = params.token.as_deref() else {
-            return Err(ApiError::Unauthorized);
-        };
-        let claims = state.jwt.verify(token).map_err(|_| ApiError::Unauthorized)?;
-        let user_id = claims.user_id().map_err(|_| ApiError::Unauthorized)?;
-        let user = state
-            .repo
-            .users()
-            .get(user_id)
-            .await?
-            .ok_or(ApiError::Unauthorized)?;
-        if !user.active {
-            return Err(ApiError::Forbidden("account disabled".into()));
+    // Auth: prefer Authorization header; fall back to ?token=. We need the
+    // resolved `AuthUser` so each event can be filtered by RBAC, not just
+    // gate the connection.
+    let auth = match AuthUser::try_from_headers(&state, &headers).await? {
+        Some(a) => a,
+        None => {
+            let token = params.token.as_deref().ok_or(ApiError::Unauthorized)?;
+            let claims = state.jwt.verify(token).map_err(|_| ApiError::Unauthorized)?;
+            let user_id = claims.user_id().map_err(|_| ApiError::Unauthorized)?;
+            let user = state
+                .repo
+                .users()
+                .get(user_id)
+                .await?
+                .ok_or(ApiError::Unauthorized)?;
+            if !user.active {
+                return Err(ApiError::Forbidden("account disabled".into()));
+            }
+            // Resolve roles to build an AuthContext for per-event RBAC.
+            let mut roles = Vec::with_capacity(user.roles.len());
+            for id in &user.roles {
+                if let Some(r) = state.repo.users().get_role(*id).await? {
+                    roles.push(r);
+                }
+            }
+            AuthUser {
+                user: user.clone(),
+                claims,
+                ctx: ferro_auth::AuthContext { user_id: user.id, roles },
+            }
         }
-    }
+    };
 
     let receiver = state.hooks.subscribe();
     let want_type = params.type_slug;
+    let auth_ctx = auth.ctx.clone();
 
     let stream = BroadcastStream::new(receiver)
         .filter_map(move |result| {
-            // `BroadcastStream` yields `Err(Lagged)` when a subscriber falls
-            // behind. Skip those silently — fresh events matter more.
             let want = want_type.clone();
+            let auth_ctx = auth_ctx.clone();
             async move {
-                match result {
-                    Ok(evt) if event_matches(&evt, want.as_deref()) => Some(evt),
-                    _ => None,
+                let evt = result.ok()?;
+                if !event_matches(&evt, want.as_deref()) {
+                    return None;
                 }
+                if !crate::graphql::user_can_read_event(&auth_ctx, &evt) {
+                    return None;
+                }
+                Some(evt)
             }
         })
         .map(|evt| {
