@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use axum::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::header::AUTHORIZATION;
 use axum::http::request::Parts;
@@ -57,7 +56,6 @@ impl AuthUser {
     }
 }
 
-#[async_trait]
 impl FromRequestParts<Arc<AppState>> for AuthUser {
     type Rejection = ApiError;
 

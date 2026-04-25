@@ -52,8 +52,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-opentelemetry = "0.25"
 
 # --- http / axum / leptos ---
-axum = { version = "0.7", features = ["macros", "ws"] }
-axum-extra = { version = "0.9", features = ["cookie", "cookie-private"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
+axum-extra = { version = "0.10", features = ["cookie", "cookie-private"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "compression-full", "fs", "set-header", "cors"] }
 hyper = "1"
@@ -70,7 +70,7 @@ async-graphql-axum = "7"
 
 # --- openapi ---
 utoipa = { version = "5", features = ["axum_extras", "uuid", "time"] }
-utoipa-swagger-ui = { version = "8", features = ["axum"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 # --- storage ---
 surrealdb = { version = "2", default-features = false, features = ["kv-rocksdb", "kv-mem", "protocol-ws", "protocol-http"] }

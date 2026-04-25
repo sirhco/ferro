@@ -2,12 +2,13 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_graphql::http::GraphiQLSource;
-use async_graphql::{Context, EmptySubscription, InputObject, Object, Request, Schema};
+use async_graphql::{Context, EmptySubscription, InputObject, Object, Schema};
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::Router;
 use ferro_auth::authorize;
 use ferro_core::{
     ContentPatch, ContentType, ContentTypeId, FieldValue, NewContent, Permission, Scope, Site,
@@ -320,20 +321,25 @@ pub fn router() -> Router<Arc<AppState>> {
 async fn graphql_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<Request>,
-) -> Json<async_graphql::Response> {
+    req: GraphQLRequest,
+) -> GraphQLResponse {
     let auth = match AuthUser::try_from_headers(&state, &headers).await {
         Ok(v) => v,
         Err(e) => {
             // Token present but invalid — surface as GraphQL error rather than
             // silently dropping to anonymous.
-            return Json(async_graphql::Response::from_errors(vec![
-                async_graphql::ServerError::new(e.to_string(), None),
-            ]));
+            return async_graphql::Response::from_errors(vec![async_graphql::ServerError::new(
+                e.to_string(),
+                None,
+            )])
+            .into();
         }
     };
-    let req = if let Some(a) = auth { req.data(a) } else { req };
-    Json(schema(state).execute(req).await)
+    let mut req = req.into_inner();
+    if let Some(a) = auth {
+        req = req.data(a);
+    }
+    schema(state).execute(req).await.into()
 }
 
 async fn graphiql() -> impl IntoResponse {

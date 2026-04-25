@@ -26,20 +26,20 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/v1/auth/me", get(me))
         .route("/api/v1/sites", get(list_sites))
         .route(
-            "/api/v1/content/:type_slug",
+            "/api/v1/content/{type_slug}",
             get(list_content).post(create_content),
         )
         .route(
-            "/api/v1/content/:type_slug/:slug",
+            "/api/v1/content/{type_slug}/{slug}",
             get(get_content).patch(update_content).delete(delete_content),
         )
         .route(
-            "/api/v1/content/:type_slug/:slug/publish",
+            "/api/v1/content/{type_slug}/{slug}/publish",
             post(publish_content),
         )
         .route("/api/v1/types", get(list_types).post(create_type))
         .route(
-            "/api/v1/types/:slug",
+            "/api/v1/types/{slug}",
             get(get_type).patch(update_type).delete(delete_type),
         )
 }
