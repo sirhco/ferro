@@ -16,9 +16,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ferro_core::{Content, ContentId, ContentTypeId, FieldChange, SiteId};
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
 
 use crate::error::PluginResult;
+
+/// Capacity of the in-process broadcast bus. Subscribers that fall this far
+/// behind get a `RecvError::Lagged` and skip ahead — preferring fresh events
+/// over stale ones for live-preview clients.
+const BUS_CAPACITY: usize = 256;
 
 /// Discrete events emitted by the storage / API layer. New variants are added
 /// by appending — handlers should treat unknown variants as no-ops via the
@@ -60,16 +65,25 @@ pub trait HookHandler: Send + Sync + std::fmt::Debug {
     fn name(&self) -> &str;
 }
 
-/// Thread-safe registry of hook handlers. Cheap to clone (`Arc` internals).
-#[derive(Debug, Default, Clone)]
+/// Thread-safe registry of hook handlers + a broadcast bus for live-preview
+/// subscribers. Cheap to clone (`Arc` internals).
+#[derive(Debug, Clone)]
 pub struct HookRegistry {
     handlers: Arc<RwLock<Vec<Arc<dyn HookHandler>>>>,
+    bus: broadcast::Sender<HookEvent>,
+}
+
+impl Default for HookRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HookRegistry {
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        let (bus, _) = broadcast::channel(BUS_CAPACITY);
+        Self { handlers: Arc::default(), bus }
     }
 
     pub async fn register(&self, handler: Arc<dyn HookHandler>) {
@@ -82,8 +96,24 @@ impl HookRegistry {
         self.handlers.read().await.clone()
     }
 
-    /// Fire `event` to every handler. Handler errors are logged at WARN and
-    /// discarded so the calling write path is never blocked by a hook.
+    /// Subscribe to the live event bus. Receivers that fall behind get
+    /// `RecvError::Lagged` and should skip ahead; the channel keeps the most
+    /// recent `BUS_CAPACITY` events.
+    #[must_use]
+    pub fn subscribe(&self) -> broadcast::Receiver<HookEvent> {
+        self.bus.subscribe()
+    }
+
+    /// Number of active subscribers. Useful for diagnostics.
+    #[must_use]
+    pub fn subscriber_count(&self) -> usize {
+        self.bus.receiver_count()
+    }
+
+    /// Fire `event` to every registered handler **and** to the broadcast bus.
+    /// Handler errors are logged at WARN and discarded so the calling write
+    /// path is never blocked by a hook. Bus send errors (no subscribers) are
+    /// silent — the bus is fire-and-forget.
     pub async fn dispatch(&self, event: HookEvent) {
         let handlers = self.snapshot().await;
         for h in handlers {
@@ -96,6 +126,9 @@ impl HookRegistry {
                 );
             }
         }
+        // `send` returns `Err` only when there are no subscribers — that's the
+        // normal case when nobody is watching, so swallow it.
+        let _ = self.bus.send(event);
     }
 }
 

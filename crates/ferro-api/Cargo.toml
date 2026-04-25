@@ -20,6 +20,7 @@ serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
 tokio.workspace = true
+tokio-stream.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 bytes.workspace = true
@@ -45,3 +46,4 @@ ferro-media = { workspace = true }
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }
 http-body-util = "0.1"
+reqwest = { workspace = true, features = ["json", "stream"] }

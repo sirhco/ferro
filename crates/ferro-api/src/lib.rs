@@ -7,6 +7,7 @@ pub mod error;
 pub mod graphql;
 pub mod openapi;
 pub mod rest;
+pub mod sse;
 pub mod state;
 
 use std::sync::Arc;
@@ -32,6 +33,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(rest::router())
         .merge(graphql::router())
         .merge(openapi::router())
+        .merge(sse::router())
         .layer(compression)
         .layer(cors)
         .layer(trace)
