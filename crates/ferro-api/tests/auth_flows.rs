@@ -306,6 +306,127 @@ async fn change_password_rejects_wrong_current() {
     assert_eq!(s, StatusCode::UNAUTHORIZED);
 }
 
+#[tokio::test]
+async fn refresh_token_rotates_pair_and_invalidates_old() {
+    let (tmp, state) = fixture(false).await;
+    seed_user(&tmp, &state, "u@example.com", "original-password").await;
+
+    // Login → get refresh1
+    let (s, v) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/login",
+            json!({ "email": "u@example.com", "password": "original-password" }),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let access1 = v["token"].as_str().unwrap().to_string();
+    let refresh1 = v["refresh_token"].as_str().unwrap().to_string();
+    assert!(!access1.is_empty());
+    assert!(!refresh1.is_empty());
+    assert_ne!(access1, refresh1, "access and refresh must differ");
+
+    // Refresh → new pair
+    let (s, v) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/refresh",
+            json!({ "refresh_token": refresh1 }),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let _access2 = v["token"].as_str().unwrap().to_string();
+    let refresh2 = v["refresh_token"].as_str().unwrap().to_string();
+    // Access JWT may collide if rotation lands within the same `iat` second;
+    // the refresh side is random so it's the meaningful uniqueness check.
+    assert_ne!(refresh1, refresh2);
+
+    // Re-using refresh1 must fail (one-shot rotation).
+    let (s, _) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/refresh",
+            json!({ "refresh_token": refresh1 }),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+
+    // refresh2 is still valid → can rotate again.
+    let (s, _) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/refresh",
+            json!({ "refresh_token": refresh2 }),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn refresh_rejects_garbage_token() {
+    let (_tmp, state) = fixture(false).await;
+    let (s, _) = req_json(
+        state,
+        json_post(
+            "/api/v1/auth/refresh",
+            json!({ "refresh_token": "not-a-real-token" }),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn logout_revokes_refresh_token() {
+    let (tmp, state) = fixture(false).await;
+    seed_user(&tmp, &state, "u@example.com", "original-password").await;
+
+    let (_s, v) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/login",
+            json!({ "email": "u@example.com", "password": "original-password" }),
+            None,
+        ),
+    )
+    .await;
+    let access = v["token"].as_str().unwrap().to_string();
+    let refresh = v["refresh_token"].as_str().unwrap().to_string();
+
+    // Logout with refresh in body.
+    let (s, _) = req_json(
+        state.clone(),
+        json_post(
+            "/api/v1/auth/logout",
+            json!({ "refresh_token": refresh }),
+            Some(&access),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+
+    // Refresh now rejected.
+    let (s, _) = req_json(
+        state,
+        json_post(
+            "/api/v1/auth/refresh",
+            json!({ "refresh_token": v["refresh_token"].as_str().unwrap() }),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+}
+
 async fn seed_user(tmp: &tempfile::TempDir, state: &Arc<AppState>, email: &str, password: &str) {
     let user = User {
         id: UserId::new(),

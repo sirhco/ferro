@@ -55,3 +55,4 @@ typed_id!(UserId, "user");
 typed_id!(RoleId, "role");
 typed_id!(MediaId, "media");
 typed_id!(FieldId, "field");
+typed_id!(ContentVersionId, "ver");

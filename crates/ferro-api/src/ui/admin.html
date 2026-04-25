@@ -111,19 +111,84 @@
 // --- Token + fetch ---------------------------------------------------------
 
 const TOKEN_KEY = "ferro.admin.token";
+const REFRESH_KEY = "ferro.admin.refresh";
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
-function setToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); }
+function getRefresh() { return localStorage.getItem(REFRESH_KEY); }
+function setTokens(access, refresh) {
+  if (access) localStorage.setItem(TOKEN_KEY, access); else localStorage.removeItem(TOKEN_KEY);
+  if (refresh !== undefined) {
+    if (refresh) localStorage.setItem(REFRESH_KEY, refresh); else localStorage.removeItem(REFRESH_KEY);
+  }
+}
+// Back-compat shim — older builds call setToken(t).
+function setToken(t) { setTokens(t || null, t ? undefined : null); }
+
+let refreshInFlight = null;
+async function logoutAndReset() {
+  // Best-effort revoke server-side. Don't await — the UI shouldn't pause if
+  // the network is flaky on the way out.
+  const refresh = getRefresh();
+  if (refresh) {
+    fetch("/api/v1/auth/logout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${getToken() || ""}`,
+      },
+      body: JSON.stringify({ refresh_token: refresh }),
+    }).catch(() => {});
+  }
+  setTokens(null, null);
+  state.user = null;
+  renderLogin();
+}
+
+async function tryRefresh() {
+  if (refreshInFlight) return refreshInFlight;
+  const refresh = getRefresh();
+  if (!refresh) return false;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (!res.ok) {
+        setTokens(null, null);
+        return false;
+      }
+      const data = await res.json();
+      setTokens(data.token, data.refresh_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
 
 async function api(method, path, body) {
-  const headers = { "Accept": "application/json" };
-  const tok = getToken();
-  if (tok) headers["Authorization"] = `Bearer ${tok}`;
-  if (body !== undefined) headers["Content-Type"] = "application/json";
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const send = async () => {
+    const headers = { "Accept": "application/json" };
+    const tok = getToken();
+    if (tok) headers["Authorization"] = `Bearer ${tok}`;
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    return fetch(path, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  };
+  let res = await send();
+  if (res.status === 401 && getRefresh()) {
+    // Try one rotation, then retry the original request once.
+    if (await tryRefresh()) {
+      res = await send();
+    }
+  }
   const text = await res.text();
   let data = null;
   if (text) {
@@ -185,7 +250,7 @@ async function boot() {
   try {
     state.user = await api("GET", "/api/v1/auth/me");
   } catch (e) {
-    setToken(null);
+    setTokens(null, null);
     renderLogin();
     return;
   }
@@ -208,7 +273,7 @@ function renderLogin() {
         email: email.value.trim(),
         password: pw.value,
       });
-      setToken(data.token);
+      setTokens(data.token, data.refresh_token || null);
       await boot();
     } catch (ex) {
       err.textContent = ex.message;
@@ -245,7 +310,7 @@ function render() {
     h("h1", null, "Ferro"),
     h("span", { class: "pill" }, state.user.email),
     h("span", { class: "who" }, `${state.user.handle}${state.user.roles.length ? ` · ${state.user.roles.length} role(s)` : ""}`),
-    h("button", { class: "ghost", onclick: () => { setToken(null); state.user = null; renderLogin(); } }, "Log out"),
+    h("button", { class: "ghost", onclick: () => { logoutAndReset(); } }, "Log out"),
   ));
 
   const navBtn = (key, label) => h("button", {
@@ -706,7 +771,7 @@ function renderSettings(view) {
     h("h3", { style: { marginTop: 0 } }, "Session"),
     h("p", null, "Logged in as ", h("strong", null, state.user.email),
       ". Token stored in browser localStorage."),
-    h("button", { class: "ghost", onclick: () => { setToken(null); state.user = null; renderLogin(); } }, "Log out"),
+    h("button", { class: "ghost", onclick: () => { logoutAndReset(); } }, "Log out"),
   ));
 }
 

@@ -11,8 +11,9 @@ use axum::response::Response;
 use std::net::IpAddr;
 use ferro_auth::{authorize, hash_password, verify_password, AuthContext};
 use ferro_core::{
-    Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, Media, MediaId, MediaKind,
-    NewContent, Page, Permission, Role, RoleId, Scope, Site, User, UserId,
+    Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, ContentVersion,
+    ContentVersionId, Media, MediaId, MediaKind, NewContent, Page, Permission, Role, RoleId,
+    Scope, Site, User, UserId,
 };
 use ferro_plugin::HookEvent;
 use ferro_storage::schema as schema_migrator;
@@ -28,6 +29,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/readyz", get(readyz))
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/logout", post(logout))
+        .route("/api/v1/auth/refresh", post(refresh))
         .route("/api/v1/auth/me", get(me))
         .route("/api/v1/auth/signup", post(signup))
         .route("/api/v1/auth/change-password", post(change_password))
@@ -43,6 +45,14 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/v1/content/{type_slug}/{slug}/publish",
             post(publish_content),
+        )
+        .route(
+            "/api/v1/content/{type_slug}/{slug}/versions",
+            get(list_versions),
+        )
+        .route(
+            "/api/v1/content/{type_slug}/{slug}/versions/{version_id}/restore",
+            post(restore_version),
         )
         .route("/api/v1/types", get(list_types).post(create_type))
         .route(
@@ -154,6 +164,12 @@ async fn update_content(
     require_write(&auth.ctx, ty.id)?;
     patch.validate(&ty)?;
     let before = content.clone();
+    // Snapshot pre-update state so callers can restore later.
+    let _ = state
+        .repo
+        .versions()
+        .create(ContentVersion::from_content(&before, Some(auth.user.id), None))
+        .await;
     let after = state.repo.content().update(content.id, patch).await?;
     state
         .hooks
@@ -195,6 +211,12 @@ async fn publish_content(
     let (_site, ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
     authorize(&auth.ctx, Permission::Publish(Scope::Type { id: ty.id }))
         .map_err(|_| ApiError::Forbidden("publish denied".into()))?;
+    // Snapshot pre-publish state.
+    let _ = state
+        .repo
+        .versions()
+        .create(ContentVersion::from_content(&content, Some(auth.user.id), None))
+        .await;
     let published = state.repo.content().publish(content.id).await?;
     state
         .hooks
@@ -214,11 +236,17 @@ struct LoginBody {
 
 #[derive(Debug, Serialize)]
 struct LoginResponse {
+    /// Short-lived bearer JWT (default 12h).
     token: String,
+    /// Long-lived opaque refresh token (default 30d). Persist client-side and
+    /// exchange via `POST /api/v1/auth/refresh` to rotate the access JWT
+    /// without re-prompting for credentials. Rotation invalidates this token.
+    refresh_token: String,
     user: User,
 }
 
 const JWT_TTL_SECS: i64 = 60 * 60 * 12; // 12 hours
+const REFRESH_TTL: time::Duration = time::Duration::days(30);
 
 async fn login(
     State(state): State<Arc<AppState>>,
@@ -227,17 +255,94 @@ async fn login(
 ) -> ApiResult<Json<LoginResponse>> {
     enforce_auth_rate(&state, &headers)?;
     let (user, _session) = state.auth.login(&body.email, &body.password, None, None).await?;
+    let resp = mint_login(&state, user).await?;
+    Ok(Json(resp))
+}
+
+#[derive(Debug, Deserialize)]
+struct RefreshBody {
+    refresh_token: String,
+}
+
+/// Exchange a refresh token for a fresh access JWT + refresh pair. The old
+/// refresh token is invalidated atomically so a leaked refresh can only be
+/// used once before the legitimate user notices their next refresh failing.
+async fn refresh(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<RefreshBody>,
+) -> ApiResult<Json<LoginResponse>> {
+    enforce_auth_rate(&state, &headers)?;
+    let (session, user) = state
+        .auth
+        .resolve_session(&body.refresh_token)
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+    if !user.active {
+        return Err(ApiError::Forbidden("account disabled".into()));
+    }
+    // One-time use — rotate.
+    state
+        .auth
+        .logout(&session.token)
+        .await
+        .map_err(ApiError::Auth)?;
+    let resp = mint_login(&state, user).await?;
+    Ok(Json(resp))
+}
+
+/// Mint an access JWT + new refresh token for `user`. Refresh tokens live in
+/// the [`SessionStore`]; the access JWT is stateless.
+async fn mint_login(state: &AppState, user: User) -> ApiResult<LoginResponse> {
     let role_names: Vec<String> = user.roles.iter().map(|r| r.to_string()).collect();
     let token = state
         .jwt
         .mint(user.id, role_names, JWT_TTL_SECS)
         .map_err(ApiError::Auth)?;
-    Ok(Json(LoginResponse { token, user: user.redacted() }))
+
+    let now = time::OffsetDateTime::now_utc();
+    let refresh = ferro_auth::Session {
+        token: ferro_auth::session::new_token(),
+        user_id: user.id,
+        created_at: now,
+        expires_at: now + REFRESH_TTL,
+        ip: None,
+        user_agent: None,
+    };
+    state
+        .auth
+        .sessions
+        .put(refresh.clone())
+        .await
+        .map_err(ApiError::Auth)?;
+    Ok(LoginResponse {
+        token,
+        refresh_token: refresh.token,
+        user: user.redacted(),
+    })
 }
 
-async fn logout(State(_state): State<Arc<AppState>>, _auth: AuthUser) -> ApiResult<StatusCode> {
-    // Stateless JWT: nothing to revoke server-side without a denylist.
-    // Client discards the token; 204 signals the intent.
+#[derive(Debug, Deserialize, Default)]
+struct LogoutBody {
+    /// Optional refresh token to revoke. When present the server-side session
+    /// is dropped so the token can no longer be exchanged. Omitting it is
+    /// allowed — clients just discard the access JWT.
+    #[serde(default)]
+    refresh_token: Option<String>,
+}
+
+async fn logout(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+    body: Option<Json<LogoutBody>>,
+) -> ApiResult<StatusCode> {
+    if let Some(Json(body)) = body {
+        if let Some(token) = body.refresh_token {
+            // Best-effort revoke. A missing/expired token isn't an error —
+            // the caller's intent is "this session is over", which it is.
+            let _ = state.auth.logout(&token).await;
+        }
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -289,12 +394,8 @@ async fn signup(
         password_changed_at: None,
     };
     let saved = state.repo.users().upsert(user).await?;
-    let role_names: Vec<String> = saved.roles.iter().map(|r| r.to_string()).collect();
-    let token = state
-        .jwt
-        .mint(saved.id, role_names, JWT_TTL_SECS)
-        .map_err(ApiError::Auth)?;
-    Ok(Json(LoginResponse { token, user: saved.redacted() }))
+    let resp = mint_login(&state, saved).await?;
+    Ok(Json(resp))
 }
 
 #[derive(Debug, Deserialize)]
@@ -371,6 +472,52 @@ fn require_write(ctx: &AuthContext, ty: ContentTypeId) -> ApiResult<()> {
 fn require_manage_schema(ctx: &AuthContext) -> ApiResult<()> {
     authorize(ctx, Permission::ManageSchema)
         .map_err(|_| ApiError::Forbidden("schema management denied".into()))
+}
+
+// --- Content version routes ---
+
+async fn list_versions(
+    State(state): State<Arc<AppState>>,
+    Path((type_slug, slug)): Path<(String, String)>,
+) -> ApiResult<Json<Vec<ContentVersion>>> {
+    let (_site, _ty, content) = resolve_entry(&state, &type_slug, &slug).await?;
+    Ok(Json(state.repo.versions().list(content.id).await?))
+}
+
+async fn restore_version(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path((type_slug, slug, version_id)): Path<(String, String, String)>,
+) -> ApiResult<Json<Content>> {
+    let (_site, ty, current) = resolve_entry(&state, &type_slug, &slug).await?;
+    require_write(&auth.ctx, ty.id)?;
+    let version_id: ContentVersionId = parse_typed_id(&version_id)?;
+    let version = state
+        .repo
+        .versions()
+        .get(version_id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    if version.content_id != current.id {
+        return Err(ApiError::BadRequest(
+            "version belongs to a different content row".into(),
+        ));
+    }
+    // Snapshot the live row before overwriting it so the restore itself is
+    // reversible.
+    let _ = state
+        .repo
+        .versions()
+        .create(ContentVersion::from_content(&current, Some(auth.user.id), None))
+        .await;
+    // Apply via update so storage backends consistently bump `updated_at`.
+    let patch = ContentPatch {
+        slug: Some(version.slug),
+        status: Some(version.status),
+        data: Some(version.data),
+    };
+    let after = state.repo.content().update(current.id, patch).await?;
+    Ok(Json(after))
 }
 
 // --- Content-type routes ---

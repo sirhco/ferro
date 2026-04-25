@@ -20,10 +20,10 @@ pub mod site;
 pub mod user;
 pub mod validation;
 
-pub use content::{Content, ContentPatch, ContentType, FieldChange, NewContent, Status};
+pub use content::{Content, ContentPatch, ContentType, ContentVersion, FieldChange, NewContent, Status};
 pub use error::{CoreError, CoreResult};
 pub use field::{FieldDef, FieldKind, FieldValue, RichFormat};
-pub use id::{ContentId, ContentTypeId, FieldId, MediaId, RoleId, SiteId, UserId};
+pub use id::{ContentId, ContentTypeId, ContentVersionId, FieldId, MediaId, RoleId, SiteId, UserId};
 pub use locale::Locale;
 pub use media::{Media, MediaKind};
 pub use query::{ContentQuery, Order, Page, SortDir};

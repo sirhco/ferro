@@ -179,6 +179,52 @@ pub struct ContentPatch {
     pub data: Option<BTreeMap<String, FieldValue>>,
 }
 
+/// Immutable snapshot of a content row at a given revision. Captured
+/// automatically by the API layer before destructive mutations (update,
+/// publish) so operators can list and restore prior states.
+///
+/// `parent_version` chains back through the history so callers can build a
+/// timeline; for the root revision it's `None`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentVersion {
+    pub id: crate::id::ContentVersionId,
+    pub content_id: ContentId,
+    pub site_id: SiteId,
+    pub type_id: ContentTypeId,
+    pub slug: String,
+    pub locale: crate::locale::Locale,
+    pub status: Status,
+    pub data: BTreeMap<String, FieldValue>,
+    pub author_id: Option<UserId>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub captured_at: OffsetDateTime,
+    pub parent_version: Option<crate::id::ContentVersionId>,
+}
+
+impl ContentVersion {
+    /// Snapshot the current state of `content` for archival.
+    #[must_use]
+    pub fn from_content(
+        content: &Content,
+        captured_by: Option<UserId>,
+        parent: Option<crate::id::ContentVersionId>,
+    ) -> Self {
+        Self {
+            id: crate::id::ContentVersionId::new(),
+            content_id: content.id,
+            site_id: content.site_id,
+            type_id: content.type_id,
+            slug: content.slug.clone(),
+            locale: content.locale.clone(),
+            status: content.status,
+            data: content.data.clone(),
+            author_id: captured_by.or(content.author_id),
+            captured_at: OffsetDateTime::now_utc(),
+            parent_version: parent,
+        }
+    }
+}
+
 impl ContentPatch {
     /// Validate the patch against its target `ContentType`.
     ///

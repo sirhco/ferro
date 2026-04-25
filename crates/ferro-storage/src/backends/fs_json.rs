@@ -23,7 +23,7 @@ pub async fn connect(cfg: &StorageConfig) -> StorageResult<Box<dyn Repository>> 
     let StorageConfig::FsJson { path } = cfg else {
         unreachable!();
     };
-    for sub in ["sites", "types", "content", "users", "roles", "media"] {
+    for sub in ["sites", "types", "content", "users", "roles", "media", "versions"] {
         fs::create_dir_all(path.join(sub)).await?;
     }
     Ok(Box::new(FsJsonRepo { root: path.clone(), _guard: RwLock::new(()) }))
@@ -77,6 +77,9 @@ impl Repository for FsJsonRepo {
         self
     }
     fn media(&self) -> &dyn MediaMetaRepo {
+        self
+    }
+    fn versions(&self) -> &dyn ContentVersionRepo {
         self
     }
 
@@ -378,5 +381,57 @@ impl MediaMetaRepo for FsJsonRepo {
     async fn upsert(&self, m: Media) -> StorageResult<Media> {
         Self::write(&self.path("media", &m.id.to_string()), &m).await?;
         Ok(m)
+    }
+}
+
+#[async_trait]
+impl ContentVersionRepo for FsJsonRepo {
+    async fn list(
+        &self,
+        content_id: ferro_core::ContentId,
+    ) -> StorageResult<Vec<ferro_core::ContentVersion>> {
+        let dir = self.root.join("versions").join(content_id.to_string());
+        let mut out = Vec::new();
+        let mut rd = match fs::read_dir(&dir).await {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+            Err(e) => return Err(StorageError::Io(e)),
+        };
+        while let Some(entry) = rd.next_entry().await? {
+            if let Some(v) = Self::read::<ferro_core::ContentVersion>(&entry.path()).await? {
+                out.push(v);
+            }
+        }
+        out.sort_by(|a, b| b.captured_at.cmp(&a.captured_at));
+        Ok(out)
+    }
+    async fn get(
+        &self,
+        id: ferro_core::ContentVersionId,
+    ) -> StorageResult<Option<ferro_core::ContentVersion>> {
+        // Versions are filed under their content's directory; brute-force scan
+        // since the wire id doesn't carry the parent. Fine for fs-json's
+        // demo-scale workloads; SQL backends index this on `content_id`.
+        let mut rd = match fs::read_dir(self.root.join("versions")).await {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(StorageError::Io(e)),
+        };
+        while let Some(per_content) = rd.next_entry().await? {
+            let p = per_content.path().join(format!("{id}.json"));
+            if p.exists() {
+                return Self::read(&p).await;
+            }
+        }
+        Ok(None)
+    }
+    async fn create(
+        &self,
+        version: ferro_core::ContentVersion,
+    ) -> StorageResult<ferro_core::ContentVersion> {
+        let dir = self.root.join("versions").join(version.content_id.to_string());
+        fs::create_dir_all(&dir).await?;
+        Self::write(&dir.join(format!("{}.json", version.id)), &version).await?;
+        Ok(version)
     }
 }
