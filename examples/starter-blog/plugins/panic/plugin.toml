@@ -1,0 +1,6 @@
+name = "panic"
+version = "0.1.0"
+description = "Intentionally panics on every content.created event to demo host fault isolation."
+entry = "plugin.wasm"
+capabilities = ["logs"]
+hooks = ["content.created"]

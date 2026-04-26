@@ -57,7 +57,22 @@ impl FsJsonRepo {
 
     async fn write<T: serde::Serialize>(path: &Path, v: &T) -> StorageResult<()> {
         let bytes = serde_json::to_vec_pretty(v).map_err(|e| StorageError::Serde(e.to_string()))?;
-        fs::write(path, bytes).await?;
+        // Atomic write: stage to a sibling tmp file, then rename. Concurrent
+        // readers (e.g. the public site reading the same data dir) never see
+        // a partial file because rename is atomic on POSIX same-fs paths.
+        let tmp = match path.file_name() {
+            Some(name) => path.with_file_name(format!(
+                ".{}.tmp.{}",
+                name.to_string_lossy(),
+                std::process::id()
+            )),
+            None => path.with_extension("tmp"),
+        };
+        fs::write(&tmp, bytes).await?;
+        if let Err(e) = fs::rename(&tmp, path).await {
+            let _ = fs::remove_file(&tmp).await;
+            return Err(StorageError::Io(e));
+        }
         Ok(())
     }
 }

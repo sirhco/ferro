@@ -1,0 +1,11 @@
+name = "audit"
+version = "0.1.0"
+description = "Append-only audit log of all content lifecycle events."
+entry = "plugin.wasm"
+capabilities = ["logs"]
+hooks = [
+    "content.created",
+    "content.updated",
+    "content.published",
+    "content.deleted",
+]

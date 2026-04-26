@@ -29,11 +29,10 @@ async fn main() {
         .parse()
         .expect("STARTER_SITE_ADDR");
 
-    let conf = get_configuration(None).expect("leptos config");
     let leptos_options = LeptosOptions::builder()
         .output_name("starter-site")
-        .site_root(conf.leptos_options.site_root.clone())
-        .site_pkg_dir(conf.leptos_options.site_pkg_dir.clone())
+        .site_root("target/site".to_string())
+        .site_pkg_dir("pkg".to_string())
         .build();
     let routes = generate_route_list(App);
 
@@ -45,7 +44,7 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/media/*path", any(proxy_media))
+        .route("/media/{*path}", any(proxy_media))
         .leptos_routes_with_context(
             &state,
             routes,
