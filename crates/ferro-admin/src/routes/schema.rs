@@ -348,43 +348,29 @@ pub fn SchemaEdit() -> impl IntoView {
             <div class="ferro-card">
                 <label>
                     <span>"Slug"</span>
-                    <input type="text" placeholder="post"
-                        prop:value=move || slug_in.get()
-                        on:input=move |ev| slug_in.set(event_target_value(&ev)) />
+                    <input type="text" placeholder="post" bind:value=slug_in />
                 </label>
                 <label>
                     <span>"Name"</span>
-                    <input type="text" placeholder="Post"
-                        prop:value=move || name_in.get()
-                        on:input=move |ev| name_in.set(event_target_value(&ev)) />
+                    <input type="text" placeholder="Post" bind:value=name_in />
                 </label>
                 <label>
                     <span>"Description (optional)"</span>
-                    <input type="text"
-                        prop:value=move || desc_in.get()
-                        on:input=move |ev| desc_in.set(event_target_value(&ev)) />
+                    <input type="text" bind:value=desc_in />
                 </label>
                 <h3>"Fields"</h3>
                 <p class="ferro-muted">"JSON array of FieldDef. Use the quick-add below for common types."</p>
-                <textarea
-                    prop:value=move || fields_text.get()
-                    on:input=move |ev| fields_text.set(event_target_value(&ev)) />
+                <textarea bind:value=fields_text />
                 <div class="ferro-row" style="gap: .5rem; margin-top: .5rem;">
-                    <select
-                        prop:value=move || preset_kind.get()
-                        on:change=move |ev| preset_kind.set(event_target_value(&ev))>
+                    <select bind:value=preset_kind>
                         <For each=move || FIELD_PRESETS.iter().copied()
                              key=|(id, _)| id.to_string()
                              let:p>
                             <option value=p.0>{p.1}</option>
                         </For>
                     </select>
-                    <input type="text" placeholder="field slug"
-                        prop:value=move || preset_slug.get()
-                        on:input=move |ev| preset_slug.set(event_target_value(&ev)) />
-                    <input type="text" placeholder="Field name"
-                        prop:value=move || preset_name.get()
-                        on:input=move |ev| preset_name.set(event_target_value(&ev)) />
+                    <input type="text" placeholder="field slug" bind:value=preset_slug />
+                    <input type="text" placeholder="Field name" bind:value=preset_name />
                     <button class="ferro-ghost" on:click=add_field>"Add field"</button>
                 </div>
                 <p class="ferro-error">{move || error.get()}</p>

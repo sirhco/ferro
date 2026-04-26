@@ -72,15 +72,11 @@ fn ChangePasswordForm() -> impl IntoView {
         <form on:submit=on_submit>
             <label>
                 <span>"Current password"</span>
-                <input type="password" autocomplete="current-password" required
-                    prop:value=move || cur.get()
-                    on:input=move |ev| cur.set(event_target_value(&ev)) />
+                <input type="password" autocomplete="current-password" required bind:value=cur />
             </label>
             <label>
                 <span>"New password (min 8 chars)"</span>
-                <input type="password" autocomplete="new-password" required minlength="8"
-                    prop:value=move || next.get()
-                    on:input=move |ev| next.set(event_target_value(&ev)) />
+                <input type="password" autocomplete="new-password" required minlength="8" bind:value=next />
             </label>
             <p>
                 <button class="ferro-primary" type="submit">"Update"</button>
@@ -206,9 +202,7 @@ fn TotpPanel() -> impl IntoView {
                         <p class="ferro-ok">"TOTP is enabled."</p>
                         <label>
                             <span>"Enter a current 6-digit code to disable"</span>
-                            <input type="text" inputmode="numeric" maxlength="6"
-                                prop:value=move || code.get()
-                                on:input=move |ev| code.set(event_target_value(&ev)) />
+                            <input type="text" inputmode="numeric" maxlength="6" bind:value=code />
                         </label>
                         <p>
                             <button class="ferro-danger" on:click=confirm_disable>"Disable"</button>
@@ -227,9 +221,7 @@ fn TotpPanel() -> impl IntoView {
                         </details>
                         <label>
                             <span>"6-digit code from your app"</span>
-                            <input type="text" inputmode="numeric" maxlength="6"
-                                prop:value=move || code.get()
-                                on:input=move |ev| code.set(event_target_value(&ev)) />
+                            <input type="text" inputmode="numeric" maxlength="6" bind:value=code />
                         </label>
                         <p>
                             <button class="ferro-primary" on:click=confirm_enable>"Enable"</button>

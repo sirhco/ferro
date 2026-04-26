@@ -256,15 +256,11 @@ pub fn ContentEdit() -> impl IntoView {
             <div class="ferro-card">
                 <label>
                     <span>"Slug"</span>
-                    <input type="text"
-                        prop:value=move || slug_input.get()
-                        on:input=move |ev| slug_input.set(event_target_value(&ev)) />
+                    <input type="text" bind:value=slug_input />
                 </label>
                 <label>
                     <span>"Data (JSON)"</span>
-                    <textarea
-                        prop:value=move || data_text.get()
-                        on:input=move |ev| data_text.set(event_target_value(&ev)) />
+                    <textarea bind:value=data_text />
                 </label>
                 <p class="ferro-error">{move || error.get()}</p>
                 <div class="ferro-row" style="gap: .5rem; margin-top: 1rem;">

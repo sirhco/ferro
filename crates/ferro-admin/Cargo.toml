@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = []
 hydrate = [
-    "leptos/hydrate",
+    "leptos/csr",
     "dep:wasm-bindgen",
     "dep:wasm-bindgen-futures",
     "dep:gloo-net",
@@ -48,6 +48,7 @@ web-sys = { version = "0.3", optional = true, features = [
     "FormData",
     "File",
     "FileList",
+    "HtmlFormElement",
     "HtmlInputElement",
     "Storage",
     "Window",

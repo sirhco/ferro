@@ -1082,12 +1082,14 @@ async fn get_media(
 /// Stream the raw bytes of a media file. Useful for previews; production
 /// deployments should configure the media store's `base_url` so clients hit
 /// the CDN/object store directly via [`Media`]'s precomputed URL.
+///
+/// Public endpoint by design — anchor/img tags can't attach a bearer
+/// header. Treat uploaded media as world-readable; sensitive assets should
+/// live in a separate signed-URL store.
 async fn get_media_raw(
     State(state): State<Arc<AppState>>,
-    auth: AuthUser,
     Path(id): Path<String>,
 ) -> ApiResult<Response<Body>> {
-    let _ = auth;
     let id: MediaId = parse_typed_id(&id)?;
     let meta = state.repo.media().get(id).await?.ok_or(ApiError::NotFound)?;
     let stream = state

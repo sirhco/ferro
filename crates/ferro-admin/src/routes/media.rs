@@ -42,7 +42,7 @@ pub fn MediaLibrary() -> impl IntoView {
         upload_err.set(false);
         #[cfg(feature = "hydrate")]
         {
-            let Some(input) = file_input_ref.get() else { return };
+            let Some(input) = file_input_ref.get_untracked() else { return };
             let Some(files) = input.files() else { return };
             let Some(file) = files.get(0) else {
                 upload_err.set(true);
@@ -57,7 +57,7 @@ pub fn MediaLibrary() -> impl IntoView {
                         upload_err.set(false);
                         upload_status.set(format!("Uploaded {}.", file.name()));
                         alt_text.set(String::new());
-                        if let Some(node) = file_input_ref.get() {
+                        if let Some(node) = file_input_ref.get_untracked() {
                             node.set_value("");
                         }
                         load();
@@ -110,9 +110,7 @@ pub fn MediaLibrary() -> impl IntoView {
                 </label>
                 <label>
                     <span>"Alt text (optional)"</span>
-                    <input type="text" placeholder="alt text (images)"
-                        prop:value=move || alt_text.get()
-                        on:input=move |ev| alt_text.set(event_target_value(&ev)) />
+                    <input type="text" placeholder="alt text (images)" bind:value=alt_text />
                 </label>
                 <p>
                     <button class="ferro-primary" on:click=on_upload>"Upload"</button>

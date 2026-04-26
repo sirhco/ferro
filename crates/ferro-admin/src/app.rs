@@ -6,9 +6,15 @@ use leptos_router::path;
 use crate::routes;
 use crate::state::AdminState;
 
-/// HTML shell rendered on the server. `cargo leptos` injects the hydration
-/// bootstrap into `<head>`.
+/// HTML shell rendered on the server. The admin app runs in CSR mode — the
+/// server only emits the bootstrap script tag plus an empty mount point, and
+/// the WASM bundle calls `mount_to_body(App)` once it loads. Avoids the
+/// SSR/hydrate marker-matching contract entirely while keeping cargo-leptos's
+/// JS/WASM/CSS pipeline intact.
 pub fn shell(options: LeptosOptions) -> impl IntoView {
+    // Required for `<Title>` / `<Stylesheet>` from leptos_meta. App is CSR so
+    // its own `provide_meta_context()` doesn't run server-side.
+    provide_meta_context();
     view! {
         <!DOCTYPE html>
         <html lang="en">
@@ -19,11 +25,15 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <HydrationScripts options=options.clone() />
                 <MetaTags />
                 <Stylesheet id="leptos" href="/pkg/ferro_admin.css" />
-                <link rel="icon" type="image/svg+xml" href="/pkg/favicon.svg" />
+                <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
                 <Title text="Ferro Admin" />
             </head>
             <body class="ferro-admin-body">
-                <App />
+                <noscript>
+                    <p style="padding: 2rem; text-align: center;">
+                        "Ferro Admin requires JavaScript / WebAssembly."
+                    </p>
+                </noscript>
             </body>
         </html>
     }
