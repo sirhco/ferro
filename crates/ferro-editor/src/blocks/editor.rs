@@ -2,6 +2,81 @@ use leptos::prelude::*;
 
 use super::model::{Block, BlockKind, Document};
 
+/// Paragraph input with slash-menu insertion.
+///
+/// When the user types `/` at the start of an empty paragraph, an inline
+/// chooser appears with all block kinds. Typing after the `/` filters by
+/// label substring. Selecting (click or Enter) swaps the current paragraph
+/// for an empty block of the chosen kind.
+#[component]
+fn ParagraphInput(idx: usize, doc: RwSignal<Document>, initial: String) -> impl IntoView {
+    let local = RwSignal::new(initial);
+    let show_menu = Memo::new(move |_| local.with(|s| s.starts_with('/')));
+    let filter = Memo::new(move |_| {
+        local.with(|s| {
+            if let Some(rest) = s.strip_prefix('/') {
+                rest.trim().to_lowercase()
+            } else {
+                String::new()
+            }
+        })
+    });
+
+    let matches = move || -> Vec<BlockKind> {
+        let f = filter.get();
+        BlockKind::all()
+            .iter()
+            .copied()
+            .filter(|k| f.is_empty() || k.label().to_lowercase().contains(&f))
+            .collect()
+    };
+
+    let pick = move |kind: BlockKind| {
+        doc.update(|blocks| {
+            if idx < blocks.len() {
+                blocks[idx] = Block::empty(kind);
+            }
+        });
+        local.set(String::new());
+    };
+
+    view! {
+        <div class="ferro-block-paragraph">
+            <textarea
+                class="ferro-block-input"
+                rows="2"
+                placeholder="Type / for blocks"
+                prop:value=move || local.get()
+                on:input=move |ev| {
+                    let v = event_target_value(&ev);
+                    local.set(v.clone());
+                    if !v.starts_with('/') {
+                        doc.update(|blocks| {
+                            if let Some(Block::Paragraph { text }) = blocks.get_mut(idx) {
+                                *text = v;
+                            }
+                        });
+                    }
+                }
+            />
+            <Show when=move || show_menu.get() fallback=|| view! { <span></span> }>
+                <div class="ferro-slash-menu">
+                    {move || matches().into_iter().map(|k| {
+                        view! {
+                            <button
+                                class="ferro-slash-item"
+                                on:click=move |_| pick(k)
+                            >
+                                {k.label()}
+                            </button>
+                        }
+                    }).collect_view()}
+                </div>
+            </Show>
+        </div>
+    }
+}
+
 #[component]
 pub fn BlockEditor(#[prop(into)] doc: RwSignal<Document>) -> impl IntoView {
     let show_picker = RwSignal::new(false);
@@ -101,22 +176,9 @@ fn render_block_inputs(idx: usize, doc: RwSignal<Document>) -> AnyView {
     };
 
     match block {
-        Block::Paragraph { text } => view! {
-            <textarea
-                class="ferro-block-input"
-                rows="2"
-                prop:value=text
-                on:input=move |ev| {
-                    let v = event_target_value(&ev);
-                    doc.update(|blocks| {
-                        if let Some(Block::Paragraph { text }) = blocks.get_mut(idx) {
-                            *text = v;
-                        }
-                    });
-                }
-            />
+        Block::Paragraph { text } => {
+            view! { <ParagraphInput idx=idx doc=doc initial=text /> }.into_any()
         }
-        .into_any(),
 
         Block::Heading { level, text } => view! {
             <div class="ferro-block-heading">

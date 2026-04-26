@@ -793,6 +793,42 @@ pre {
     color: var(--muted, #64748b);
 }
 
+.ferro-block-paragraph {
+    position: relative;
+}
+
+.ferro-slash-menu {
+    position: absolute;
+    z-index: 20;
+    top: 100%;
+    left: 0;
+    margin-top: .25rem;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .12);
+    min-width: 12rem;
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.ferro-slash-item {
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: .4rem .65rem;
+    font-size: .9rem;
+    cursor: pointer;
+    color: var(--fg);
+
+    &:hover, &:focus {
+        background: var(--surface-2);
+        color: var(--accent, #ea580c);
+    }
+}
+
 .ferro-block-divider-preview {
     border: none;
     border-top: 2px dashed var(--border);

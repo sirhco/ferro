@@ -135,6 +135,9 @@ quote = "1"
 proc-macro2 = "1"
 darling = "0.20"
 
+# --- markdown ---
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+
 # --- compression ---
 brotli = "7"
 flate2 = "1"

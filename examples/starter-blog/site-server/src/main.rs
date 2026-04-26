@@ -1,5 +1,6 @@
 mod data;
 mod render;
+mod seo;
 mod views;
 
 use std::env;
@@ -17,6 +18,7 @@ use leptos_axum::{generate_route_list, LeptosRoutes};
 use leptos_meta::*;
 
 use crate::data::ApiClient;
+use crate::seo::SeoLoader;
 use crate::views::App;
 
 #[tokio::main]
@@ -28,6 +30,9 @@ async fn main() {
         .unwrap_or_else(|_| "127.0.0.1:3001".into())
         .parse()
         .expect("STARTER_SITE_ADDR");
+    let seo_root: std::path::PathBuf = env::var("FERRO_SEO_ROOT")
+        .unwrap_or_else(|_| "plugins/seo/data".into())
+        .into();
 
     let leptos_options = LeptosOptions::builder()
         .output_name("starter-site")
@@ -37,6 +42,7 @@ async fn main() {
     let routes = generate_route_list(App);
 
     let api = ApiClient::new(api_base.clone());
+    let seo_loader = SeoLoader::new(seo_root);
 
     let state = SiteState {
         api_base: api_base.clone(),
@@ -50,8 +56,10 @@ async fn main() {
             routes,
             {
                 let api = api.clone();
+                let seo = seo_loader.clone();
                 move || {
                     provide_context(api.clone());
+                    provide_context(seo.clone());
                 }
             },
             {
