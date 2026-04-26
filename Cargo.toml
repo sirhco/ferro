@@ -35,7 +35,7 @@ lib-features = ["hydrate"]
 lib-profile-release = "release-wasm"
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.82"
 license = "Apache-2.0"
@@ -152,15 +152,15 @@ tokio-test = "0.4"
 proptest = "1"
 
 # --- internal crates ---
-ferro-core = { path = "crates/ferro-core", version = "0.1.0" }
-ferro-macros = { path = "crates/ferro-macros", version = "0.1.0" }
-ferro-storage = { path = "crates/ferro-storage", version = "0.1.0" }
-ferro-auth = { path = "crates/ferro-auth", version = "0.1.0" }
-ferro-media = { path = "crates/ferro-media", version = "0.1.0" }
-ferro-plugin = { path = "crates/ferro-plugin", version = "0.1.0" }
-ferro-api = { path = "crates/ferro-api", version = "0.1.0" }
-ferro-editor = { path = "crates/ferro-editor", version = "0.1.0" }
-ferro-admin = { path = "crates/ferro-admin", version = "0.1.0" }
+ferro-core = { path = "crates/ferro-core", version = "1.0.0" }
+ferro-macros = { path = "crates/ferro-macros", version = "1.0.0" }
+ferro-storage = { path = "crates/ferro-storage", version = "1.0.0" }
+ferro-auth = { path = "crates/ferro-auth", version = "1.0.0" }
+ferro-media = { path = "crates/ferro-media", version = "1.0.0" }
+ferro-plugin = { path = "crates/ferro-plugin", version = "1.0.0" }
+ferro-api = { path = "crates/ferro-api", version = "1.0.0" }
+ferro-editor = { path = "crates/ferro-editor", version = "1.0.0" }
+ferro-admin = { path = "crates/ferro-admin", version = "1.0.0" }
 
 [profile.release]
 codegen-units = 1

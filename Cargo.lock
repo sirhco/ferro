@@ -2860,7 +2860,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-admin"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",
@@ -2886,7 +2886,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-graphql",
  "async-graphql-axum",
@@ -2924,7 +2924,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-auth"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "argon2",
  "async-trait",
@@ -2948,7 +2948,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-cli"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2989,7 +2989,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "regex",
@@ -3005,7 +3005,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-editor"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "ferro-core",
  "leptos",
@@ -3016,7 +3016,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-macros"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "darling 0.20.11",
  "proc-macro2",
@@ -3026,7 +3026,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-media"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -3049,7 +3049,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-plugin"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -3077,7 +3077,7 @@ dependencies = [
 
 [[package]]
 name = "ferro-storage"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "ferro-core",

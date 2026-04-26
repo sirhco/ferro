@@ -8,7 +8,7 @@ Ferro is an isomorphic CMS built on [Leptos](https://leptos.dev) and [Axum](http
 
 ## Status
 
-**Pre-alpha.** The workspace is scaffolded and compiles the data model, traits, and API surface. Backends, admin UI, and plugin host are progressing per the [roadmap](DESIGN.md#13-roadmap).
+**1.0.0** — released 2026-04-26. All four storage backends (fs-json, fs-markdown, surreal, postgres) are full-CRUD; auth surface is hardened end-to-end (Argon2id + JWT iat-invalidation + refresh rotation + RFC 6238 TOTP + RBAC + per-IP rate limit + CSRF); GraphQL + REST + SSE + WebSocket subs are co-equal; admin UI runs on Leptos SSR + CSR; the wasmtime+component-model plugin host loads real WASM components with capability gates. Performance budgets are CI-enforced (per DESIGN.md §10). See [`CHANGELOG.md`](CHANGELOG.md) for the full version arc and [`DESIGN.md §13`](DESIGN.md#13-roadmap) for the post-1.0 roadmap (edge runtime is v2 — see ADR-0005).
 
 ## Highlights
 
