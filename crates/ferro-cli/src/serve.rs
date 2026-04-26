@@ -7,7 +7,9 @@ use axum::Router;
 use clap::Args as ClapArgs;
 use ferro_api::{AppState, AuthOptions};
 use ferro_auth::{AuthService, JwtManager, MemorySessionStore};
-use ferro_plugin::{HookRegistry, LoggingHook, WebhookHook};
+use ferro_plugin::{
+    HookRegistry, LoggingHook, PluginRegistry, PluginRuntime, RuntimeConfig, Services, WebhookHook,
+};
 use leptos::prelude::LeptosOptions;
 use leptos_axum::{generate_route_list, LeptosRoutes};
 use tower_http::services::ServeDir;
@@ -56,11 +58,33 @@ pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
         }
     }
 
+    let services = Arc::new(Services::new(repo.clone(), hooks.clone()));
+    let runtime = PluginRuntime::new(
+        RuntimeConfig {
+            max_memory_bytes: cfg.plugins.max_memory_mb * 1024 * 1024,
+            fuel_per_request: cfg.plugins.fuel_per_request,
+            ..Default::default()
+        },
+        services,
+    )?;
+    let grants: Vec<_> = cfg.plugins.grants.iter().map(|g| g.to_grant()).collect();
+    let plugin_registry = Arc::new(PluginRegistry::new(
+        runtime,
+        cfg.plugins.dir.clone(),
+        hooks.clone(),
+        &grants,
+    ));
+    if let Err(e) = plugin_registry.scan().await {
+        tracing::warn!(target: "ferro::plugin", error = %e, "plugin scan failed");
+    }
+
     let options = AuthOptions {
         allow_public_signup: cfg.auth.allow_public_signup,
     };
     let state = Arc::new(
-        AppState::with_hooks(repo, media, auth, jwt, hooks).with_options(options),
+        AppState::with_hooks(repo, media, auth, jwt, hooks)
+            .with_options(options)
+            .with_plugins(plugin_registry),
     );
 
     let site_dir = resolve_site_dir(args.site_dir.as_deref());

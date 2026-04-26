@@ -1,0 +1,19 @@
+[package]
+name = "plugin-hello"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Minimal Ferro WASM plugin: logs every published content slug."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.35"
+
+# Standalone — not a workspace member. The crate compiles only for the
+# `wasm32-wasip2` target; including it in the root workspace would force the
+# host build to attempt it. Build with:
+#   cargo build --manifest-path examples/plugin-hello/Cargo.toml --release --target wasm32-wasip2
+[workspace]

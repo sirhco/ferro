@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ferro_auth::{AuthService, JwtManager};
 use ferro_media::MediaStore;
-use ferro_plugin::HookRegistry;
+use ferro_plugin::{HookRegistry, PluginRegistry};
 use ferro_storage::Repository;
 
 use crate::rate_limit::{RateLimitConfig, RateLimiter};
@@ -27,6 +27,10 @@ pub struct AppState {
     /// peer IP; tests can opt out by passing `RateLimitConfig` with a huge
     /// burst (`u32::MAX`) so checks always succeed.
     pub auth_rate_limit: Arc<RateLimiter>,
+    /// WASM plugin registry. `None` when the binary was started without
+    /// plugin support (e.g. older test fixtures); REST plugin endpoints
+    /// return `503 Service Unavailable` in that case.
+    pub plugins: Option<Arc<PluginRegistry>>,
 }
 
 impl AppState {
@@ -44,6 +48,7 @@ impl AppState {
             hooks: HookRegistry::new(),
             options: AuthOptions::default(),
             auth_rate_limit: Arc::new(RateLimiter::new(RateLimitConfig::default())),
+            plugins: None,
         }
     }
 
@@ -64,7 +69,15 @@ impl AppState {
             hooks,
             options: AuthOptions::default(),
             auth_rate_limit: Arc::new(RateLimiter::new(RateLimitConfig::default())),
+            plugins: None,
         }
+    }
+
+    /// Builder-style override for the WASM plugin registry.
+    #[must_use]
+    pub fn with_plugins(mut self, plugins: Arc<PluginRegistry>) -> Self {
+        self.plugins = Some(plugins);
+        self
     }
 
     /// Builder-style override for the auth rate limiter. Tests use this to

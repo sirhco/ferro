@@ -56,6 +56,9 @@ pub fn api_doc() -> OpenApi {
             "TypeUpdateResponse",
             type_update_response_schema(),
         )
+        .schema("PluginInfo", plugin_info_schema())
+        .schema("PluginGrantBody", plugin_grant_body_schema())
+        .schema("PluginEnabledBody", plugin_enabled_body_schema())
         .security_scheme("bearer", bearer)
         .build();
 
@@ -274,6 +277,76 @@ pub fn api_doc() -> OpenApi {
                 .build(),
             ),
         )
+        .path(
+            "/api/v1/plugins",
+            PathItem::new(
+                HttpMethod::Get,
+                secure(op_builder(
+                    "plugins",
+                    "List installed WASM plugins (requires `manage_plugins`).",
+                    None,
+                    json_200_array_ref("PluginInfo"),
+                    None::<Vec<Parameter>>,
+                ))
+                .build(),
+            ),
+        )
+        .path(
+            "/api/v1/plugins/{name}",
+            PathItem::new(
+                HttpMethod::Get,
+                secure(op_builder(
+                    "plugins",
+                    "Inspect a single plugin.",
+                    None,
+                    json_200_ref("PluginInfo"),
+                    Some(vec![path_param("name")]),
+                ))
+                .build(),
+            ),
+        )
+        .path(
+            "/api/v1/plugins/{name}/grant",
+            PathItem::new(
+                HttpMethod::Post,
+                secure(op_builder(
+                    "plugins",
+                    "Update granted capabilities (in-memory only — persist via ferro.toml `[[plugins.grants]]` to survive restart). Triggers a reload of the affected plugin.",
+                    Some(json_body_ref("PluginGrantBody")),
+                    json_200_ref("PluginInfo"),
+                    Some(vec![path_param("name")]),
+                ))
+                .build(),
+            ),
+        )
+        .path(
+            "/api/v1/plugins/{name}/reload",
+            PathItem::new(
+                HttpMethod::Post,
+                secure(op_builder(
+                    "plugins",
+                    "Re-scan the plugin directory and reload all plugins. (Path `name` is currently unused; full reload is the only supported mode.)",
+                    None,
+                    no_content(),
+                    Some(vec![path_param("name")]),
+                ))
+                .build(),
+            ),
+        )
+        .path(
+            "/api/v1/plugins/{name}/enabled",
+            PathItem::new(
+                HttpMethod::Post,
+                secure(op_builder(
+                    "plugins",
+                    "Enable or disable a plugin's hook dispatch without unloading it.",
+                    Some(json_body_ref("PluginEnabledBody")),
+                    json_200_ref("PluginInfo"),
+                    Some(vec![path_param("name")]),
+                ))
+                .build(),
+            ),
+        )
         .build();
 
     let tags = vec![
@@ -292,6 +365,12 @@ pub fn api_doc() -> OpenApi {
         TagBuilder::new()
             .name("meta")
             .description(Some("Health and readiness probes."))
+            .build(),
+        TagBuilder::new()
+            .name("plugins")
+            .description(Some(
+                "WASM plugin host: list, inspect, grant capabilities, enable/disable, reload.",
+            ))
             .build(),
     ];
 
@@ -786,6 +865,63 @@ fn type_update_response_schema() -> Schema {
 #[allow(dead_code)]
 fn _unused_array(name: &str) -> Schema {
     array_of(name)
+}
+
+fn plugin_info_schema() -> Schema {
+    let str_array: RefOr<Schema> = RefOr::T(Schema::Array(
+        ArrayBuilder::new()
+            .items(RefOr::T(Schema::Object(str_field().build())))
+            .build(),
+    ));
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("name", str_field())
+            .property("version", str_field())
+            .property("description", str_field())
+            .property("declared", str_array.clone())
+            .property("granted", str_array.clone())
+            .property("hooks", str_array)
+            .property(
+                "enabled",
+                ObjectBuilder::new().schema_type(Type::Boolean),
+            )
+            .required("name")
+            .required("version")
+            .required("declared")
+            .required("granted")
+            .required("hooks")
+            .required("enabled")
+            .build(),
+    )
+}
+
+fn plugin_grant_body_schema() -> Schema {
+    let str_array: RefOr<Schema> = RefOr::T(Schema::Array(
+        ArrayBuilder::new()
+            .items(RefOr::T(Schema::Object(str_field().build())))
+            .build(),
+    ));
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property("capabilities", str_array)
+            .required("capabilities")
+            .build(),
+    )
+}
+
+fn plugin_enabled_body_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property(
+                "enabled",
+                ObjectBuilder::new().schema_type(Type::Boolean),
+            )
+            .required("enabled")
+            .build(),
+    )
 }
 
 trait PathItemExt: Sized {

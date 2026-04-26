@@ -1,15 +1,14 @@
-// Ferro plugin ABI (draft v0.1).
-// WIT world that plugins implement; host provides the imports.
+// Ferro plugin ABI (v0.1, locked).
 //
-// Build plugins with `wit-bindgen rust` (or the corresponding JS/Go toolchain)
-// targeting this world, then package the component with `wasm-tools component new`.
+// Plugins implement the `guest` interface; the host implements `host`.
+// Build plugins with `wit-bindgen rust` (or another toolchain) targeting
+// this world, then package the component with `wasm-tools component new`.
 
 package ferro:cms@0.1.0;
 
 interface types {
     type content-id = string;
     type site-id = string;
-    type user-id = string;
 
     record content {
         id: content-id,
@@ -21,54 +20,51 @@ interface types {
         data-json: string,
     }
 
-    record log-entry {
-        level: string,
-        message: string,
+    record content-deleted {
+        content-id: content-id,
+        slug: string,
     }
 
-    record http-req {
-        method: string,
-        path: string,
-        headers: list<tuple<string, string>>,
-        body: list<u8>,
+    enum log-level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
     }
 
-    record http-resp {
-        status: u16,
-        headers: list<tuple<string, string>>,
-        body: list<u8>,
+    variant hook-event {
+        content-created(content),
+        content-updated(content),
+        content-published(content),
+        content-deleted(content-deleted),
     }
 }
 
-// Host → Plugin capabilities (granted per plugin)
+// Host → Plugin imports. Each call is capability-checked at the host before
+// servicing; a missing grant returns an `err`.
 interface host {
-    use types.{content, content-id, http-req, http-resp, log-entry};
+    use types.{content, content-id, log-level};
 
-    /// Fetch content by id. Returns none if unauthorized or missing.
+    /// Emit a structured log line. Requires `logs` capability.
+    log: func(level: log-level, target: string, message: string);
+
+    /// Fetch a content row by id. Returns `none` when missing or unauthorized.
+    /// Requires `content.read` capability.
     get-content: func(id: content-id) -> option<content>;
-
-    /// Emit a log line (requires `logs` capability).
-    log: func(entry: log-entry);
-
-    /// HTTP fetch (requires `http.fetch:<host>` capability).
-    http-fetch: func(req: http-req) -> result<http-resp, string>;
 }
 
-// Plugin → Host hooks (plugin exports)
-interface hooks {
-    use types.{content, http-req, http-resp};
+// Plugin → Host exports. The plugin implements both functions; `init` runs
+// once at load time, `on-event` runs for each hook firing the manifest
+// subscribed to.
+interface guest {
+    use types.{hook-event};
 
-    /// Called after content is created; may mutate + return new value.
-    on-content-create: func(c: content) -> option<content>;
-
-    /// Called before content publishes. Return Err to block.
-    on-content-publish: func(c: content) -> result<_, string>;
-
-    /// Optional HTTP handler. Must match the serve prefix capability.
-    on-request: func(req: http-req) -> option<http-resp>;
+    init: func() -> result<_, string>;
+    on-event: func(evt: hook-event) -> result<_, string>;
 }
 
 world plugin {
     import host;
-    export hooks;
+    export guest;
 }

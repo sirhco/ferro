@@ -15,7 +15,7 @@ use ferro_core::{
     ContentVersionId, Media, MediaId, MediaKind, NewContent, Page, Permission, Role, RoleId,
     Scope, Site, User, UserId,
 };
-use ferro_plugin::HookEvent;
+use ferro_plugin::{HookEvent, PluginInfo};
 use ferro_storage::schema as schema_migrator;
 use serde::{Deserialize, Serialize};
 
@@ -80,6 +80,117 @@ pub fn router() -> Router<Arc<AppState>> {
             get(get_media).delete(delete_media),
         )
         .route("/api/v1/media/{id}/raw", get(get_media_raw))
+        .route("/api/v1/plugins", get(list_plugins))
+        .route("/api/v1/plugins/{name}", get(inspect_plugin))
+        .route("/api/v1/plugins/{name}/grant", post(grant_plugin))
+        .route("/api/v1/plugins/{name}/reload", post(reload_plugin))
+        .route("/api/v1/plugins/{name}/enabled", post(set_plugin_enabled))
+}
+
+// --- Plugin management routes ---
+
+fn require_manage_plugins(ctx: &AuthContext) -> ApiResult<()> {
+    authorize(ctx, Permission::ManagePlugins)
+        .map_err(|_| ApiError::Forbidden("plugin management denied".into()))
+}
+
+fn require_plugins(state: &AppState) -> ApiResult<&Arc<ferro_plugin::PluginRegistry>> {
+    state
+        .plugins
+        .as_ref()
+        .ok_or_else(|| ApiError::Unavailable("plugin host not initialized".into()))
+}
+
+#[derive(Debug, Deserialize)]
+struct GrantBody {
+    capabilities: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EnabledBody {
+    enabled: bool,
+}
+
+async fn list_plugins(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<PluginInfo>>> {
+    require_manage_plugins(&auth.ctx)?;
+    let reg = require_plugins(&state)?;
+    Ok(Json(reg.describe_all().await))
+}
+
+async fn inspect_plugin(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(name): Path<String>,
+) -> ApiResult<Json<PluginInfo>> {
+    require_manage_plugins(&auth.ctx)?;
+    let reg = require_plugins(&state)?;
+    let info = reg
+        .describe(&name)
+        .await
+        .map_err(|_| ApiError::NotFound)?;
+    Ok(Json(info))
+}
+
+async fn grant_plugin(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(name): Path<String>,
+    Json(body): Json<GrantBody>,
+) -> ApiResult<Json<PluginInfo>> {
+    require_manage_plugins(&auth.ctx)?;
+    let reg = require_plugins(&state)?;
+    reg.set_grants(&name, body.capabilities)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let info = reg
+        .describe(&name)
+        .await
+        .map_err(|_| ApiError::NotFound)?;
+    Ok(Json(info))
+}
+
+async fn reload_plugin(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(name): Path<String>,
+) -> ApiResult<StatusCode> {
+    require_manage_plugins(&auth.ctx)?;
+    let reg = require_plugins(&state)?;
+    if name == "*" || name == "_all" {
+        reg.reload()
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    } else {
+        // No granular reload-one; round-trip through set_grants with the
+        // current granted set (we don't have a public API to just rescan one).
+        // Fall back to a full reload — cheap and predictable.
+        reg.reload()
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    }
+    let _ = name;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn set_plugin_enabled(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Path(name): Path<String>,
+    Json(body): Json<EnabledBody>,
+) -> ApiResult<Json<PluginInfo>> {
+    require_manage_plugins(&auth.ctx)?;
+    let reg = require_plugins(&state)?;
+    reg.set_enabled(&name, body.enabled)
+        .await
+        .map_err(|_| ApiError::NotFound)?;
+    let info = reg
+        .describe(&name)
+        .await
+        .map_err(|_| ApiError::NotFound)?;
+    Ok(Json(info))
 }
 
 async fn healthz() -> &'static str {

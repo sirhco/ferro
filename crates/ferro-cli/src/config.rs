@@ -64,6 +64,27 @@ pub struct PluginConfig {
     pub dir: PathBuf,
     pub max_memory_mb: usize,
     pub fuel_per_request: u64,
+    /// Operator-side capability grants per plugin. A plugin whose name is
+    /// absent from this list loads with empty grants, and is rejected if its
+    /// manifest declares any capabilities.
+    #[serde(default)]
+    pub grants: Vec<PluginGrantConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginGrantConfig {
+    pub name: String,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+}
+
+impl PluginGrantConfig {
+    pub fn to_grant(&self) -> ferro_plugin::PluginGrant {
+        ferro_plugin::PluginGrant {
+            name: self.name.clone(),
+            capabilities: self.capabilities.clone(),
+        }
+    }
 }
 
 impl FerroConfig {

@@ -13,13 +13,15 @@ pub mod host;
 pub mod manifest;
 pub mod registry;
 pub mod runtime;
+pub mod wasm_hook;
 pub mod webhook;
 
 pub use capability::Capability;
 pub use error::{PluginError, PluginResult};
 pub use hook::{HookEvent, HookHandler, HookRegistry, LoggingHook};
-pub use host::HostContext;
+pub use host::{HostContext, Services};
 pub use manifest::PluginManifest;
-pub use registry::PluginRegistry;
+pub use registry::{PluginGrant, PluginInfo, PluginRegistry};
 pub use runtime::{PluginHandle, PluginRuntime, RuntimeConfig};
+pub use wasm_hook::WasmPluginHook;
 pub use webhook::{WebhookConfig, WebhookHook};

@@ -83,6 +83,14 @@ pub trait HookHandler: Send + Sync + std::fmt::Debug {
 
     /// Human-readable name, used in trace output.
     fn name(&self) -> &str;
+
+    /// When this handler belongs to a WASM plugin, return its plugin name so
+    /// the registry can selectively swap or remove the handler during a
+    /// plugin reload without disturbing built-in hooks (`LoggingHook`,
+    /// `WebhookHook`, etc.). Default: `None`.
+    fn plugin_name(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// Thread-safe registry of hook handlers + a broadcast bus for live-preview
@@ -108,6 +116,14 @@ impl HookRegistry {
 
     pub async fn register(&self, handler: Arc<dyn HookHandler>) {
         self.handlers.write().await.push(handler);
+    }
+
+    /// Drop every registered handler whose `plugin_name()` matches `name`.
+    /// Used by [`crate::PluginRegistry`] when reloading a plugin so the new
+    /// handle replaces the old without leaking duplicates.
+    pub async fn unregister_plugin(&self, name: &str) {
+        let mut h = self.handlers.write().await;
+        h.retain(|x| x.plugin_name() != Some(name));
     }
 
     /// Snapshot the current handler list. Used by the dispatcher so a handler
