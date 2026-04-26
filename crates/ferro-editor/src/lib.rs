@@ -4,9 +4,11 @@
 
 #![deny(rust_2018_idioms)]
 
+pub mod blocks;
 pub mod field;
 pub mod markdown;
 pub mod toolbar;
 
+pub use blocks::{render_html as render_blocks_html, Block, BlockEditor, Document};
 pub use field::FieldEditor;
 pub use markdown::MarkdownEditor;

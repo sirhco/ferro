@@ -12,6 +12,7 @@ members = [
     "crates/ferro-admin",
     "crates/ferro-cli",
     "examples/starter-blog",
+    "examples/starter-blog/site-server",
 ]
 
 # cargo-leptos configuration. Two crates, one project: ferro-cli is the SSR

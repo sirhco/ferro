@@ -27,6 +27,12 @@
 - [Media](media.md)
 - [Plugins & webhooks](plugins-webhooks.md)
 
+# Authoring
+
+- [Block editor](block-editor.md)
+- [Live preview](live-preview.md)
+- [Plugin walkthrough](plugin-walkthrough.md)
+
 # Architecture decisions
 
 - [ADR-0001: Leptos](adr/0001-leptos.md)

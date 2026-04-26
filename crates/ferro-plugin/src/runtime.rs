@@ -5,14 +5,14 @@
 //!  - the `ferro::cms::host::Host` trait the host implements (imports), and
 //!  - the `exports::ferro::cms::guest::Guest` accessor for plugin-side calls.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use wasmtime::component::{Component, Linker};
 use wasmtime::{Config, Engine, Store};
-use wasmtime_wasi::{ResourceTable, WasiCtxBuilder};
+use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtxBuilder};
 
 use crate::capability::Capability;
 use crate::error::{PluginError, PluginResult};
@@ -94,11 +94,15 @@ impl PluginRuntime {
 
         let wasm_bytes = tokio::fs::read(plugin_dir.join(&manifest.entry)).await?;
         let component = Component::from_binary(&self.engine, &wasm_bytes)?;
+        let sandbox_dir = plugin_dir.join("data");
+        // Best-effort sandbox dir creation; plugins that don't write are unaffected.
+        let _ = tokio::fs::create_dir_all(&sandbox_dir).await;
         Ok(PluginHandle {
             runtime: self.clone(),
             component,
             manifest,
             grants,
+            sandbox_dir,
         })
     }
 }
@@ -109,6 +113,10 @@ pub struct PluginHandle {
     component: Component,
     manifest: PluginManifest,
     grants: Vec<Capability>,
+    /// Per-plugin sandbox dir (`<plugin_dir>/data`) preopened as `/data` in the
+    /// WASI context. Plugins with `media.write` or sidecar-output use cases
+    /// (e.g. SEO) write here; everything outside this dir is unreachable.
+    sandbox_dir: PathBuf,
 }
 
 impl std::fmt::Debug for PluginHandle {
@@ -134,10 +142,19 @@ impl PluginHandle {
     /// Build a fresh [`Store`] with per-invocation fuel/epoch limits and a
     /// locked-down WASI context. Each invocation gets its own store.
     pub fn new_store(&self) -> PluginResult<Store<HostContext>> {
+        let mut wasi = WasiCtxBuilder::new();
+        if self.sandbox_dir.exists() {
+            wasi.preopened_dir(
+                &self.sandbox_dir,
+                "/data",
+                DirPerms::all(),
+                FilePerms::all(),
+            )?;
+        }
         let host = HostContext {
             plugin_name: self.manifest.name.clone(),
             granted: self.grants.clone(),
-            wasi: WasiCtxBuilder::new().build(),
+            wasi: wasi.build(),
             table: ResourceTable::new(),
             services: self.runtime.services.clone(),
         };

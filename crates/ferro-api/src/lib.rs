@@ -7,6 +7,7 @@ pub mod csrf;
 pub mod error;
 pub mod graphql;
 pub mod openapi;
+pub mod preview;
 pub mod rate_limit;
 pub mod rest;
 pub mod sse;
@@ -39,6 +40,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(graphql::router())
         .merge(openapi::router())
         .merge(sse::router())
+        .merge(preview::router())
         .layer(middleware::from_fn(csrf::enforce))
         .layer(compression)
         .layer(cors)

@@ -2896,6 +2896,7 @@ dependencies = [
  "bytes",
  "ferro-auth",
  "ferro-core",
+ "ferro-editor",
  "ferro-media",
  "ferro-plugin",
  "ferro-storage",
@@ -7719,6 +7720,29 @@ dependencies = [
  "serde",
  "serde_json",
  "time",
+]
+
+[[package]]
+name = "starter-site-server"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "ferro-core",
+ "ferro-editor",
+ "hyper 1.9.0",
+ "leptos",
+ "leptos_axum",
+ "leptos_meta",
+ "leptos_router",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "time",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

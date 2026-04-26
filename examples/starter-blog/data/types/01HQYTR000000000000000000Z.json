@@ -1,0 +1,91 @@
+{
+  "id": "01HQYTR000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "slug": "product",
+  "name": "Product",
+  "description": "Sellable item — name, price, gallery, rich description.",
+  "fields": [
+    {
+      "id": "01HQYFR100000000000000000Z",
+      "slug": "name",
+      "name": "Name",
+      "help": "Product name shown in catalog.",
+      "kind": { "type": "text", "multiline": false, "max": 200 },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFR200000000000000000Z",
+      "slug": "slug",
+      "name": "Slug",
+      "help": "URL fragment under /products/.",
+      "kind": { "type": "slug", "source_field": "name" },
+      "required": true,
+      "localized": false,
+      "unique": true,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFR300000000000000000Z",
+      "slug": "price_cents",
+      "name": "Price (cents)",
+      "help": "Integer price in the smallest currency unit.",
+      "kind": { "type": "number", "int": true, "min": 0, "max": null },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFR400000000000000000Z",
+      "slug": "currency",
+      "name": "Currency",
+      "help": "ISO currency code.",
+      "kind": { "type": "enum", "options": ["USD", "EUR", "GBP"] },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFR500000000000000000Z",
+      "slug": "blocks",
+      "name": "Description",
+      "help": "Rich product description.",
+      "kind": { "type": "rich_text", "format": "blocks" },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFR600000000000000000Z",
+      "slug": "gallery_ids",
+      "name": "Gallery",
+      "help": "Image gallery (multiple).",
+      "kind": { "type": "media", "multiple": true, "accept": ["image/jpeg", "image/png", "image/webp"] },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFR700000000000000000Z",
+      "slug": "in_stock",
+      "name": "In stock",
+      "help": "Whether the product is currently available.",
+      "kind": { "type": "boolean" },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    }
+  ],
+  "singleton": false,
+  "title_field": "name",
+  "slug_field": "slug",
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z"
+}

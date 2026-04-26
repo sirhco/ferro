@@ -13,6 +13,7 @@ ferro-storage.workspace = true
 ferro-auth.workspace = true
 ferro-media.workspace = true
 ferro-plugin.workspace = true
+ferro-editor.workspace = true
 
 async-trait.workspace = true
 thiserror.workspace = true

@@ -1,0 +1,33 @@
+[package]
+name = "starter-site-server"
+version = "0.0.1"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Public-facing zero-JS Leptos SSR site for the starter-blog example."
+
+[[bin]]
+name = "starter-site"
+path = "src/main.rs"
+
+[dependencies]
+ferro-core.workspace = true
+ferro-editor = { workspace = true }
+
+axum = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+hyper = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+leptos = { workspace = true, features = ["ssr"] }
+leptos_meta = { workspace = true, features = ["ssr"] }
+leptos_router = { workspace = true, features = ["ssr"] }
+leptos_axum = { workspace = true }

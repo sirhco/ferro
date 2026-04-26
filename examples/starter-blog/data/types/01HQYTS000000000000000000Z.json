@@ -1,0 +1,91 @@
+{
+  "id": "01HQYTS000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "slug": "event",
+  "name": "Event",
+  "description": "Time-bound event with start/end timestamps and a venue.",
+  "fields": [
+    {
+      "id": "01HQYFS100000000000000000Z",
+      "slug": "title",
+      "name": "Title",
+      "help": "Event title.",
+      "kind": { "type": "text", "multiline": false, "max": 200 },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFS200000000000000000Z",
+      "slug": "slug",
+      "name": "Slug",
+      "help": "URL fragment under /events/.",
+      "kind": { "type": "slug", "source_field": "title" },
+      "required": true,
+      "localized": false,
+      "unique": true,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFS300000000000000000Z",
+      "slug": "starts_at",
+      "name": "Starts at",
+      "help": "Event start timestamp.",
+      "kind": { "type": "date_time" },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFS400000000000000000Z",
+      "slug": "ends_at",
+      "name": "Ends at",
+      "help": "Event end timestamp.",
+      "kind": { "type": "date_time" },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFS500000000000000000Z",
+      "slug": "venue",
+      "name": "Venue",
+      "help": "Free-form venue or virtual location.",
+      "kind": { "type": "text", "multiline": false, "max": 200 },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFS600000000000000000Z",
+      "slug": "blocks",
+      "name": "Description",
+      "help": "Event description.",
+      "kind": { "type": "rich_text", "format": "blocks" },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFS700000000000000000Z",
+      "slug": "cover_image_id",
+      "name": "Cover image",
+      "help": "Optional banner image.",
+      "kind": { "type": "media", "multiple": false, "accept": ["image/jpeg", "image/png", "image/webp"] },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    }
+  ],
+  "singleton": false,
+  "title_field": "title",
+  "slug_field": "slug",
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z"
+}

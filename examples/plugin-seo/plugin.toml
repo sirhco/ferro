@@ -1,0 +1,6 @@
+name = "seo"
+version = "0.1.0"
+description = "Generates OG meta + JSON-LD sidecar files for published content."
+entry = "plugin.wasm"
+capabilities = ["logs", "content.read"]
+hooks = ["content.published"]

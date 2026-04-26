@@ -1,6 +1,7 @@
 use ferro_core::{FieldDef, FieldKind, FieldValue, RichFormat};
 use leptos::prelude::*;
 
+use crate::blocks::{BlockEditor, Document};
 use crate::markdown::MarkdownEditor;
 
 /// A generic field editor that dispatches on the field definition's kind.
@@ -86,6 +87,20 @@ pub fn FieldEditor(
                 />
             }
             .into_any(),
+            FieldKind::RichText { format: RichFormat::Blocks } => {
+                let initial: Document = match v.clone() {
+                    FieldValue::Object(j) => serde_json::from_value(j).unwrap_or_default(),
+                    FieldValue::Array(_) => Vec::new(),
+                    _ => Vec::new(),
+                };
+                let sig = RwSignal::new(initial);
+                Effect::new(move |_| {
+                    let val = serde_json::to_value(sig.get())
+                        .unwrap_or(serde_json::Value::Array(Vec::new()));
+                    on_change.run(FieldValue::Object(val));
+                });
+                view! { <BlockEditor doc=sig /> }.into_any()
+            }
             FieldKind::RichText { .. } => view! {
                 <p class="ferro-editor-todo">
                     {format!("editor todo: rich-text format {:?}", def.kind)}

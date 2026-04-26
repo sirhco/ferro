@@ -3,11 +3,12 @@
 A minimal but complete Ferro example. Drop into the workspace and you have:
 
 - A pre-seeded **default site** ("Starter Blog").
-- Two **content types**: `Post` and `Author`, with realistic field shapes (text, slug, rich-text markdown, json tags, reference, media).
-- One **author** entry (Jane Doe).
-- Three **posts**: two published, one draft. Markdown bodies, tags, author refs.
+- Five **content types**: `Post`, `Author`, `Page`, `Product`, `Event`. Cover the full range of field kinds — text, slug, rich-text markdown, native block editor, json tags, reference, media (single + multiple), enum, number, boolean, date-time.
+- Eleven **seed entries**: 1 author, 3 posts, 2 pages (`about`, `contact`), 3 products (cloud pricing tiers), 2 events.
 - A **demo admin user** (`me@example.com` / `correct-horse-battery-staple`) wired to the `admin` role.
-- Code-first **Rust definitions** of the same content types in `src/lib.rs` via `#[derive(ContentType)]`, for teams that prefer schema-as-code.
+- Code-first **Rust definitions** of all five content types in `src/lib.rs` via `#[derive(ContentType)]`, for teams that prefer schema-as-code.
+- A **zero-JS public site** (`site-server/`) that server-renders Posts/Pages/Products/Events from the same fs-json store the admin writes to.
+- Four **reference plugins** under `examples/`: `plugin-seo`, `plugin-audit`, `plugin-webhook-demo`, `plugin-panic` — see [`docs/plugin-walkthrough.md`](../../docs/plugin-walkthrough.md).
 
 ## Run
 
@@ -103,6 +104,38 @@ pub struct Post {
 ```
 
 The macro generates a `ContentType` constructor + `FieldDef` list. Wire into a build step that synchronizes the generated schema into the repo (TODO; today the JSON files are the source of truth).
+
+## Public site (zero-JS Leptos SSR)
+
+A separate binary serves the public-facing site. It calls the admin API
+for content and renders pure server-side HTML — no client-side
+JavaScript framework, no hydration. This demonstrates the "sub-500ms
+TTI" pitch end-to-end.
+
+```sh
+# In a second terminal, with ferro-cli already serving on :8080
+cd examples/starter-blog
+cargo run -p starter-site-server
+# → starter-site listening on http://127.0.0.1:3001
+```
+
+Routes:
+
+- `/` — home (latest posts + product grid)
+- `/blog`, `/blog/:slug` — Post index + detail
+- `/products`, `/products/:slug` — Product catalog
+- `/events`, `/events/:slug` — Event listing
+- `/:slug` — catch-all Page (e.g. `/about`, `/contact`)
+
+`view-source:` any page and confirm there is no framework runtime in the
+body — just rendered HTML and one inline stylesheet.
+
+## Live preview in admin
+
+The admin's content-edit page renders a live `<iframe>` of the entry
+(including drafts) via `/preview/:type/:slug`. Saves trigger an SSE
+event that auto-reloads the iframe — no manual refresh needed. See
+[`docs/live-preview.md`](../../docs/live-preview.md).
 
 ## What to try next
 

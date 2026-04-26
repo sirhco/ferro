@@ -28,6 +28,8 @@ pub enum RichFormat {
     Markdown,
     ProseMirror,
     Html,
+    /// Native Ferro block document — `Vec<Block>` serialized as JSON.
+    Blocks,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +90,7 @@ impl FieldValue {
                 }
                 Ok(())
             }
+            (K::RichText { format: RichFormat::Blocks }, V::Object(_) | V::Array(_)) => Ok(()),
             (K::RichText { .. } | K::Slug { .. }, V::String(_)) => Ok(()),
             (K::Number { int, min, max }, V::Number(n)) => {
                 if *int && n.fract() != 0.0 {

@@ -1,9 +1,13 @@
+use std::collections::HashMap;
+
+use ferro_core::{FieldDef, FieldValue};
+use ferro_editor::FieldEditor;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
-use serde_json::Value;
+use serde_json::{Map as JsonMap, Value};
 
 use crate::routes::layout::Shell;
-use crate::state::AdminState;
+use crate::state::{AdminState, TypeSummary};
 
 #[component]
 pub fn ContentEdit() -> impl IntoView {
@@ -15,13 +19,24 @@ pub fn ContentEdit() -> impl IntoView {
     let is_new = Memo::new(move |_| entry_slug.get().is_empty());
 
     let slug_input = RwSignal::new(String::new());
-    let data_text = RwSignal::new(String::from("{}"));
+    let form = RwSignal::new(HashMap::<String, FieldValue>::new());
     let error = RwSignal::new(String::new());
     let busy = RwSignal::new(false);
 
-    // Versions panel.
     let versions = RwSignal::new(Vec::<Value>::new());
     let versions_err = RwSignal::new(String::new());
+
+    let resolved_fields = Signal::derive(move || -> Vec<FieldDef> {
+        let ts = type_slug.get();
+        let summaries = state.types.read();
+        let Some(ty) = summaries.iter().find(|t: &&TypeSummary| t.slug == ts) else {
+            return Vec::new();
+        };
+        ty.fields
+            .iter()
+            .filter_map(|v| serde_json::from_value::<FieldDef>(v.clone()).ok())
+            .collect()
+    });
 
     let load = move |ts: String, slug: String| {
         if slug.is_empty() {
@@ -32,28 +47,30 @@ pub fn ContentEdit() -> impl IntoView {
             let ts2 = ts.clone();
             let slug2 = slug.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                let path = format!(
-                    "/api/v1/content/{}/{}",
-                    encode(&ts2),
-                    encode(&slug2)
-                );
+                let path =
+                    format!("/api/v1/content/{}/{}", encode(&ts2), encode(&slug2));
                 match crate::api::get::<Value>(&path).await {
                     Ok(c) => {
                         if let Some(s) = c.get("slug").and_then(|v| v.as_str()) {
                             slug_input.set(s.to_string());
                         }
-                        let data = c.get("data").cloned().unwrap_or(serde_json::json!({}));
-                        if let Ok(t) = serde_json::to_string_pretty(&data) {
-                            data_text.set(t);
+                        let data = c.get("data").cloned().unwrap_or(Value::Null);
+                        let mut map = HashMap::<String, FieldValue>::new();
+                        if let Value::Object(obj) = data {
+                            for (k, v) in obj {
+                                if let Ok(fv) = serde_json::from_value::<FieldValue>(v.clone()) {
+                                    map.insert(k, fv);
+                                } else {
+                                    map.insert(k, FieldValue::Object(v));
+                                }
+                            }
                         }
+                        form.set(map);
                     }
                     Err(e) => error.set(e.message()),
                 }
-                let vp = format!(
-                    "/api/v1/content/{}/{}/versions",
-                    encode(&ts),
-                    encode(&slug)
-                );
+                let vp =
+                    format!("/api/v1/content/{}/{}/versions", encode(&ts), encode(&slug));
                 match crate::api::get::<Vec<Value>>(&vp).await {
                     Ok(vs) => versions.set(vs),
                     Err(e) => versions_err.set(e.message()),
@@ -74,13 +91,18 @@ pub fn ContentEdit() -> impl IntoView {
         }
     });
 
+    let serialize_form = move || -> Value {
+        let mut out = JsonMap::new();
+        for (k, v) in form.get().into_iter() {
+            let val = serde_json::to_value(&v).unwrap_or(Value::Null);
+            out.insert(k, val);
+        }
+        Value::Object(out)
+    };
+
     let on_save = move |_| {
         error.set(String::new());
-        let parsed: Result<Value, _> = serde_json::from_str(&data_text.get());
-        let Ok(parsed) = parsed else {
-            error.set("Invalid JSON".into());
-            return;
-        };
+        let parsed = serialize_form();
         busy.set(true);
         let st = state;
         let ts = type_slug.get();
@@ -91,7 +113,6 @@ pub fn ContentEdit() -> impl IntoView {
         {
             wasm_bindgen_futures::spawn_local(async move {
                 if new_flag {
-                    // Need type_id for create — look up from state.types.
                     let ty_id_locale = expect_context::<AdminState>()
                         .types
                         .read()
@@ -118,7 +139,7 @@ pub fn ContentEdit() -> impl IntoView {
                         Err(e) => error.set(e.message()),
                     }
                 } else {
-                    let mut patch = serde_json::Map::new();
+                    let mut patch = JsonMap::new();
                     if !new_slug.is_empty() && new_slug != cur_slug {
                         patch.insert("slug".into(), Value::String(new_slug));
                     }
@@ -131,13 +152,16 @@ pub fn ContentEdit() -> impl IntoView {
                     match crate::api::patch::<Value, _>(&path, &Value::Object(patch)).await {
                         Ok(_) => {
                             st.set_toast_ok("Saved.");
-                            crate::util::navigate_to(&format!("/admin/content/{ts}"));
                         }
                         Err(e) => error.set(e.message()),
                     }
                 }
                 busy.set(false);
             });
+        }
+        #[cfg(not(feature = "hydrate"))]
+        {
+            let _ = (parsed, st, ts, new_flag, cur_slug, new_slug);
         }
     };
 
@@ -182,6 +206,29 @@ pub fn ContentEdit() -> impl IntoView {
             let _ = (version_id, captured, st);
         }
     };
+
+    let preview_url = move || {
+        let ts = type_slug.get();
+        let slug = entry_slug.get();
+        if slug.is_empty() {
+            String::new()
+        } else {
+            format!("/preview/{ts}/{slug}")
+        }
+    };
+
+    // Wire SSE → reload preview iframe whenever a content event for this slug fires.
+    #[cfg(feature = "hydrate")]
+    {
+        Effect::new(move |_| {
+            let ts = type_slug.get();
+            let slug = entry_slug.get();
+            if ts.is_empty() || slug.is_empty() {
+                return;
+            }
+            install_preview_reloader(&ts, &slug);
+        });
+    }
 
     view! {
         <Shell>
@@ -253,25 +300,101 @@ pub fn ContentEdit() -> impl IntoView {
                 }.into_any()
             }}
 
-            <div class="ferro-card">
-                <label>
-                    <span>"Slug"</span>
-                    <input type="text" bind:value=slug_input />
-                </label>
-                <label>
-                    <span>"Data (JSON)"</span>
-                    <textarea bind:value=data_text />
-                </label>
-                <p class="ferro-error">{move || error.get()}</p>
-                <div class="ferro-row" style="gap: .5rem; margin-top: 1rem;">
-                    <button class="ferro-primary" on:click=on_save disabled=move || busy.get()>
-                        {move || if is_new.get() { "Create" } else { "Save" }}
-                    </button>
-                    <button class="ferro-ghost" on:click=on_cancel>"Cancel"</button>
+            <div class="ferro-content-edit-grid">
+                <div class="ferro-card ferro-content-edit-form">
+                    <label>
+                        <span>"Slug"</span>
+                        <input type="text" bind:value=slug_input />
+                    </label>
+
+                    <For
+                        each=move || resolved_fields.get()
+                        key=|f| f.slug.clone()
+                        let:fdef
+                    >
+                        {{
+                            let slug = fdef.slug.clone();
+                            let name = fdef.name.clone();
+                            let help = fdef.help.clone();
+                            let def_sig = Signal::derive(move || fdef.clone());
+                            let slug_for_value = slug.clone();
+                            let value_sig = Signal::derive(move || {
+                                form.with(|m| m.get(&slug_for_value).cloned().unwrap_or(FieldValue::Null))
+                            });
+                            let slug_for_change = slug.clone();
+                            let on_change = Callback::new(move |v: FieldValue| {
+                                let s = slug_for_change.clone();
+                                form.update(|m| { m.insert(s, v); });
+                            });
+                            view! {
+                                <label class="ferro-field">
+                                    <span class="ferro-field-name">{name}</span>
+                                    {help.map(|h| view! { <small class="ferro-muted">{h}</small> })}
+                                    <FieldEditor def=def_sig value=value_sig on_change=on_change />
+                                </label>
+                            }
+                        }}
+                    </For>
+
+                    <p class="ferro-error">{move || error.get()}</p>
+                    <div class="ferro-row" style="gap: .5rem; margin-top: 1rem;">
+                        <button class="ferro-primary" on:click=on_save disabled=move || busy.get()>
+                            {move || if is_new.get() { "Create" } else { "Save" }}
+                        </button>
+                        <button class="ferro-ghost" on:click=on_cancel>"Cancel"</button>
+                    </div>
                 </div>
+
+                {move || {
+                    let url = preview_url();
+                    if url.is_empty() {
+                        view! { <span></span> }.into_any()
+                    } else {
+                        view! {
+                            <div class="ferro-card ferro-content-edit-preview">
+                                <div class="ferro-row" style="justify-content: space-between; margin-bottom: .5rem;">
+                                    <h3 style="margin:0;">"Preview"</h3>
+                                    <a class="ferro-muted" href=url.clone() target="_blank" rel="noopener">"open ↗"</a>
+                                </div>
+                                <iframe id="ferro-preview-iframe" class="ferro-preview-iframe" src=url />
+                            </div>
+                        }.into_any()
+                    }
+                }}
             </div>
         </Shell>
     }
+}
+
+#[cfg(feature = "hydrate")]
+fn install_preview_reloader(type_slug: &str, slug: &str) {
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::JsCast;
+
+    let url = format!("/api/v1/events?type={}", encode(type_slug));
+    let Ok(es) = web_sys::EventSource::new(&url) else {
+        return;
+    };
+    let slug = slug.to_string();
+    let onmessage = Closure::wrap(Box::new(move |evt: web_sys::MessageEvent| {
+        let data = evt.data();
+        let s = data.as_string().unwrap_or_default();
+        if s.contains(&slug) {
+            if let Some(win) = web_sys::window() {
+                if let Some(doc) = win.document() {
+                    if let Some(el) = doc.get_element_by_id("ferro-preview-iframe") {
+                        if let Ok(iframe) = el.dyn_into::<web_sys::HtmlIFrameElement>() {
+                            if let Some(content_win) = iframe.content_window() {
+                                let _ = content_win.location().reload();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }) as Box<dyn FnMut(web_sys::MessageEvent)>);
+    es.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+    onmessage.forget();
 }
 
 #[cfg(feature = "hydrate")]

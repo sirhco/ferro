@@ -1,0 +1,26 @@
+{
+  "id": "01HQYP9000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "type_id": "01HQYTS000000000000000000Z",
+  "slug": "ferroconf-2026",
+  "locale": "en",
+  "status": "published",
+  "data": {
+    "title": "FerroConf 2026",
+    "slug": "ferroconf-2026",
+    "starts_at": "2026-09-15T09:00:00Z",
+    "ends_at": "2026-09-16T18:00:00Z",
+    "venue": "Berlin, Germany",
+    "blocks": [
+      { "kind": "heading", "level": 2, "text": "Two days, one stack" },
+      { "kind": "paragraph", "text": "Talks on Rust web architecture, WASM plugin design, and shipping content systems at scale." },
+      { "kind": "list", "ordered": true, "items": ["Day 1: Architecture deep dives", "Day 2: Workshops and lightning talks"] },
+      { "kind": "quote", "text": "Bring a laptop. Bring opinions.", "cite": "Organizing committee" }
+    ],
+    "cover_image_id": null
+  },
+  "author_id": null,
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z",
+  "published_at": "2026-04-26T00:00:00Z"
+}
