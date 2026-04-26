@@ -1,44 +1,232 @@
-// Ferro admin — scaffold styles. Real theme lives in a later pass.
+// Ferro admin SPA styles. Light/dark via prefers-color-scheme; structure
+// mirrors the legacy admin.html theme so operators don't need to relearn
+// any chrome.
+
 :root {
-    --ferro-bg: #0e0f12;
-    --ferro-fg: #e8e9ed;
-    --ferro-accent: #d97706;
-    --ferro-border: #2a2c32;
-    --ferro-muted: #8b8e95;
-    --ferro-radius: 6px;
-    --ferro-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color-scheme: light dark;
+    --bg: #f7f7f9;
+    --surface: #ffffff;
+    --border: #e1e1e6;
+    --text: #1a1a1f;
+    --muted: #6b7280;
+    --accent: #f97316;
+    --accent-text: #ffffff;
+    --danger: #dc2626;
+    --ok: #16a34a;
+    --radius: 6px;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-* {
-    box-sizing: border-box;
-}
-
-body.ferro-admin-body {
-    margin: 0;
-    background: var(--ferro-bg);
-    color: var(--ferro-fg);
-    font-family: var(--ferro-font);
-    font-size: 15px;
-    line-height: 1.5;
-}
-
-#ferro-main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-}
-
-h1 {
-    font-weight: 600;
-    letter-spacing: -0.01em;
-}
-
-a {
-    color: var(--ferro-accent);
-    text-decoration: none;
-    &:hover {
-        text-decoration: underline;
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f1115;
+        --surface: #1a1d24;
+        --border: #2a2f3a;
+        --text: #e7e9ee;
+        --muted: #8a93a3;
     }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body.ferro-admin-body {
+    font-family: var(--font);
+    line-height: 1.5;
+    min-height: 100vh;
+    font-size: 15px;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.ferro-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.ferro-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .75rem 1.25rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+
+    h1 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+    }
+
+    .ferro-user-pill {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: .85rem;
+    }
+}
+
+.ferro-body {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 0;
+}
+
+.ferro-nav {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 1rem 0;
+    display: flex;
+    flex-direction: column;
+
+    .ferro-nav-link {
+        display: block;
+        padding: .55rem 1.25rem;
+        color: inherit;
+        text-decoration: none;
+        font-size: .95rem;
+
+        &:hover {
+            background: var(--bg);
+        }
+
+        &.ferro-nav-active {
+            color: var(--accent);
+            border-left: 3px solid var(--accent);
+            padding-left: calc(1.25rem - 3px);
+        }
+    }
+}
+
+.ferro-view {
+    padding: 1.5rem;
+    overflow: auto;
+}
+
+.ferro-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+
+    h3 {
+        margin-top: 0;
+    }
+}
+
+.ferro-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+
+    > * {
+        flex: 0 0 auto;
+    }
+}
+
+.ferro-grow {
+    flex: 1 1 auto !important;
+}
+
+label {
+    display: block;
+    margin: .75rem 0 .25rem;
+
+    > span {
+        display: block;
+        font-size: .85rem;
+        color: var(--muted);
+        margin-bottom: .25rem;
+    }
+}
+
+input[type=text],
+input[type=email],
+input[type=password],
+input[type=file],
+textarea,
+select {
+    width: 100%;
+    padding: .55rem .75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: .95rem;
+}
+
+textarea {
+    font-family: ui-monospace, "SF Mono", monospace;
+    min-height: 8rem;
+}
+
+button,
+.ferro-primary,
+.ferro-ghost,
+.ferro-danger {
+    display: inline-block;
+    padding: .5rem 1rem;
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: .9rem;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.ferro-primary { background: var(--accent); color: var(--accent-text); }
+.ferro-danger  { background: var(--danger);  color: white; }
+.ferro-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: .4rem .9rem;
+}
+.ferro-ghost:hover { background: var(--bg); text-decoration: none; }
+
+.ferro-muted { color: var(--muted); }
+.ferro-ok    { color: var(--ok); }
+.ferro-error { color: var(--danger); }
+
+.ferro-pill {
+    display: inline-block;
+    padding: .1rem .55rem;
+    border-radius: 999px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    font-size: .75rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th, td {
+        text-align: left;
+        padding: .5rem .75rem;
+        border-bottom: 1px solid var(--border);
+        font-size: .9rem;
+        vertical-align: top;
+    }
+
+    th {
+        color: var(--muted);
+        font-weight: 600;
+    }
+}
+
+pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: .75rem;
+    font-size: .85rem;
+    overflow: auto;
 }
 
 .ferro-quicklinks {
@@ -48,45 +236,85 @@ a {
     margin-top: 1rem;
 }
 
-.ferro-login {
-    max-width: 360px;
-    margin: 8rem auto;
+.ferro-auth-shell {
     display: grid;
-    gap: 1rem;
+    place-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+}
 
-    label {
-        display: grid;
-        gap: 0.25rem;
-    }
+.ferro-auth-card {
+    width: 100%;
+    max-width: 360px;
+    padding: 2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: grid;
+    gap: .75rem;
 
-    input {
-        padding: 0.5rem 0.75rem;
-        background: #1a1c22;
-        border: 1px solid var(--ferro-border);
-        border-radius: var(--ferro-radius);
-        color: var(--ferro-fg);
-    }
-
-    button {
-        padding: 0.6rem;
-        background: var(--ferro-accent);
-        color: #fff;
-        border: none;
-        border-radius: var(--ferro-radius);
-        cursor: pointer;
-        font-weight: 600;
+    h1 {
+        margin: 0 0 1rem;
+        font-size: 1.25rem;
     }
 }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    th,
-    td {
-        padding: 0.6rem 0.75rem;
-        border-bottom: 1px solid var(--ferro-border);
-        text-align: left;
+.ferro-media-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.ferro-media-tile {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    font-size: .8rem;
+
+    img {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 4px;
     }
+}
+
+.ferro-media-placeholder {
+    height: 120px;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    border-radius: 4px;
+    color: var(--muted);
+}
+
+.ferro-media-name {
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.ferro-toast {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    max-width: 360px;
+    padding: .75rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .12);
+}
+
+.ferro-toast-ok  { border-color: var(--ok); }
+.ferro-toast-err { border-color: var(--danger); }
+
+.ferro-empty {
+    padding: 2rem;
+    color: var(--muted);
+    text-align: center;
 }
 
 .ferro-markdown-editor {
@@ -97,19 +325,13 @@ table {
     textarea {
         width: 100%;
         min-height: 20rem;
-        background: #14161b;
-        border: 1px solid var(--ferro-border);
-        color: var(--ferro-fg);
-        padding: 0.75rem;
-        border-radius: var(--ferro-radius);
-        font-family: "JetBrains Mono", ui-monospace, monospace;
     }
 
     .ferro-markdown-preview {
-        background: #14161b;
-        border: 1px solid var(--ferro-border);
-        border-radius: var(--ferro-radius);
-        padding: 0.75rem;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: .75rem;
         overflow-y: auto;
     }
 }

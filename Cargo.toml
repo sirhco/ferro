@@ -14,6 +14,26 @@ members = [
     "examples/starter-blog",
 ]
 
+# cargo-leptos configuration. Two crates, one project: ferro-cli is the SSR
+# binary (server) and ferro-admin compiles to a WASM library (browser).
+[[workspace.metadata.leptos]]
+name = "ferro-admin"
+bin-package = "ferro-cli"
+bin-target = "ferro"
+bin-exe-name = "ferro"
+lib-package = "ferro-admin"
+output-name = "ferro_admin"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+style-file = "crates/ferro-admin/style/main.scss"
+assets-dir = "crates/ferro-admin/public"
+site-addr = "127.0.0.1:3000"
+reload-port = 3002
+browserquery = "defaults"
+bin-features = []
+lib-features = ["hydrate"]
+lib-profile-release = "release-wasm"
+
 [workspace.package]
 version = "0.1.0"
 edition = "2021"

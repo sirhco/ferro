@@ -22,12 +22,18 @@ ferro-auth.workspace = true
 ferro-media = { workspace = true, features = ["local", "s3", "gcs", "images"] }
 ferro-plugin.workspace = true
 ferro-api.workspace = true
+ferro-admin = { workspace = true, features = ["ssr"] }
 
 tokio = { workspace = true, features = ["full"] }
 axum.workspace = true
 hyper.workspace = true
 tower.workspace = true
 tower-http = { workspace = true, features = ["compression-br", "fs", "set-header"] }
+
+leptos = { workspace = true, features = ["ssr"] }
+leptos_axum.workspace = true
+leptos_meta = { workspace = true, features = ["ssr"] }
+leptos_router = { workspace = true, features = ["ssr"] }
 
 clap.workspace = true
 dialoguer.workspace = true

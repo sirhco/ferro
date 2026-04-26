@@ -53,19 +53,15 @@ async fn root_serves_landing_html() {
 }
 
 #[tokio::test]
-async fn admin_serves_spa_html() {
+async fn admin_route_not_owned_by_ferro_api() {
+    // The Leptos SSR app in `ferro-admin` owns `/admin/*` now; ferro-cli
+    // mounts it. ferro_api::router intentionally returns 404 here so the
+    // CLI's `leptos_routes` layer is the single source of truth.
     let (_tmp, state) = fixture().await;
     let app = ferro_api::router(state);
     let resp = app
         .oneshot(Request::get("/admin").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = to_bytes(resp.into_body(), 256 * 1024).await.unwrap();
-    let body = std::str::from_utf8(&body).unwrap();
-    assert!(body.contains("Ferro Admin"));
-    // Critical bits of the SPA logic — sanity check we shipped the JS.
-    assert!(body.contains("/api/v1/auth/login"));
-    assert!(body.contains("localStorage"));
-    assert!(body.contains("renderContent"));
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
