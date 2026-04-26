@@ -65,6 +65,7 @@ pub fn App() -> impl IntoView {
                 <Route path=path!("/admin/schema/edit/:slug") view=routes::schema::SchemaEdit />
                 <Route path=path!("/admin/media") view=routes::media::MediaLibrary />
                 <Route path=path!("/admin/users") view=routes::users::UsersPage />
+                <Route path=path!("/admin/roles") view=routes::roles::RolesPage />
                 <Route path=path!("/admin/plugins") view=routes::plugins::PluginsPage />
                 <Route path=path!("/admin/settings") view=routes::settings::SettingsPage />
             </Routes>

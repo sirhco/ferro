@@ -2,6 +2,7 @@
 //! commands end-to-end. The `ferro` binary is `src/main.rs`.
 
 pub mod admin;
+pub mod budgets;
 pub mod build;
 pub mod config;
 pub mod export;

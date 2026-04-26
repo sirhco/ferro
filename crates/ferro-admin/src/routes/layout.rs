@@ -99,6 +99,7 @@ fn Nav() -> impl IntoView {
             <A href="/admin/schema" attr:class=move || cls("/admin/schema")>"Schema"</A>
             <A href="/admin/media" attr:class=move || cls("/admin/media")>"Media"</A>
             <A href="/admin/users" attr:class=move || cls("/admin/users")>"Users"</A>
+            <A href="/admin/roles" attr:class=move || cls("/admin/roles")>"Roles"</A>
             <A href="/admin/plugins" attr:class=move || cls("/admin/plugins")>"Plugins"</A>
             <A href="/admin/settings" attr:class=move || cls("/admin/settings")>"Settings"</A>
         </nav>

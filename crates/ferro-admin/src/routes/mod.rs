@@ -5,6 +5,7 @@ pub mod layout;
 pub mod login;
 pub mod media;
 pub mod plugins;
+pub mod roles;
 pub mod schema;
 pub mod settings;
 pub mod users;

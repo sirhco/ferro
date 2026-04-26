@@ -39,7 +39,7 @@ The default site wasn't seeded. Check the boot log for `seeded default site`. If
 ### `/admin/...` returns plain "404"
 
 Either:
-- `--site-dir` is wrong ⇒ `pkg/` doesn't exist ⇒ Leptos shell can't load. Boot log will show "admin SPA assets not found at <path>". Run `ferro build` or pass the right `--site-dir`.
+- `--site-dir` is wrong ⇒ `pkg/` doesn't exist ⇒ Leptos shell can't load. Boot log will show "admin SPA assets not found at `<path>`". Run `ferro build` or pass the right `--site-dir`.
 - The `[server] admin_enabled = false` flag is set (future flag).
 
 ## Storage
