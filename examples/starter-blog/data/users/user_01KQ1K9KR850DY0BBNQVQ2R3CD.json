@@ -2,12 +2,14 @@
   "id": "01KQ1K9KR850DY0BBNQVQ2R3CD",
   "email": "me@example.com",
   "handle": "me",
-  "display_name": null,
+  "display_name": "Demo Admin",
   "password_hash": "$argon2id$v=19$m=19456,t=2,p=1$W+yGlxkEl1tlj3Eb84Gzlw$RcNCVXyV17N/qISM9GFGnHSHRWlNNoloMJexmaLDIQU",
   "roles": [
     "01KQ1K9KR8JBGSQDV3RJA08C21"
   ],
   "active": true,
   "created_at": "2026-04-25T05:55:11.401851Z",
-  "last_login": null
+  "last_login": null,
+  "password_changed_at": null,
+  "totp_secret": null
 }

@@ -1,0 +1,20 @@
+{
+  "id": "01HQYP3000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "type_id": "01HQYTP000000000000000000Z",
+  "slug": "shipping-checklist",
+  "locale": "en",
+  "status": "draft",
+  "data": {
+    "title": "Shipping a Ferro instance: the boring checklist",
+    "slug": "shipping-checklist",
+    "excerpt": "TLS, JWT secret, rate limit headers, backups, MFA. The unglamorous stuff that keeps your CMS up.",
+    "body": "# Shipping a Ferro instance: the boring checklist\n\nDraft post — tighten before publish.\n\n## Pre-launch\n\n- [ ] `FERRO_JWT_SECRET` set to ≥32 bytes of entropy (env, never committed).\n- [ ] Reverse proxy passes `X-Real-IP` for per-client rate limiting.\n- [ ] `[auth] allow_public_signup = false` unless intentional.\n- [ ] Postgres or remote SurrealDB if you have more than one editor.\n- [ ] HTTPS everywhere; HSTS at the proxy.\n- [ ] Backups configured and **restored** to a disposable instance (untested backups don't exist).\n- [ ] Outbound webhooks have HMAC secrets; receivers verify.\n- [ ] Admin users have TOTP enrolled.\n\n## Day one\n\n- Watch `journalctl -u ferro -f` during the first deploy.\n- Hit `/healthz` and `/readyz` from the load balancer's health check.\n- Click through the admin: log in, create a content type, upload media, publish a post.\n- Trigger a webhook by publishing — confirm the receiver got it.\n\n## When it breaks\n\n- See [docs/troubleshooting.md](../../../docs/troubleshooting.md). Most issues are config drift between the binary and `ferro.toml`.\n- `RUST_LOG=debug,ferro=trace ferro serve` for verbose logs.",
+    "tags": ["ops", "deployment", "checklist"],
+    "author_id": "01HQYAJ000000000000000000Z"
+  },
+  "author_id": null,
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z",
+  "published_at": null
+}

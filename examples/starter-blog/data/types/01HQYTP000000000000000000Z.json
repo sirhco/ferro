@@ -1,0 +1,91 @@
+{
+  "id": "01HQYTP000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "slug": "post",
+  "name": "Blog post",
+  "description": "Long-form article with title, slug, body, tags.",
+  "fields": [
+    {
+      "id": "01HQYFP100000000000000000Z",
+      "slug": "title",
+      "name": "Title",
+      "help": "Headline shown in lists and the article header.",
+      "kind": { "type": "text", "multiline": false, "max": 200 },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFP200000000000000000Z",
+      "slug": "slug",
+      "name": "Slug",
+      "help": "URL fragment. Lowercase, hyphenated.",
+      "kind": { "type": "slug", "source_field": "title" },
+      "required": true,
+      "localized": false,
+      "unique": true,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFP300000000000000000Z",
+      "slug": "excerpt",
+      "name": "Excerpt",
+      "help": "Short summary for list pages.",
+      "kind": { "type": "text", "multiline": true, "max": 500 },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFP400000000000000000Z",
+      "slug": "body",
+      "name": "Body",
+      "help": "Markdown article body.",
+      "kind": { "type": "rich_text", "format": "markdown" },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFP500000000000000000Z",
+      "slug": "tags",
+      "name": "Tags",
+      "help": "Free-form taxonomy.",
+      "kind": { "type": "json" },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFP600000000000000000Z",
+      "slug": "author_id",
+      "name": "Author",
+      "help": "Reference to an Author entry.",
+      "kind": { "type": "reference", "to_type": "author", "multiple": false },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFP700000000000000000Z",
+      "slug": "cover_image_id",
+      "name": "Cover image",
+      "help": "Optional hero image.",
+      "kind": { "type": "media", "multiple": false, "accept": ["image/jpeg", "image/png", "image/webp"] },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    }
+  ],
+  "singleton": false,
+  "title_field": "title",
+  "slug_field": "slug",
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z"
+}

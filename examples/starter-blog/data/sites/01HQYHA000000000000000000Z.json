@@ -1,0 +1,17 @@
+{
+  "id": "01HQYHA000000000000000000Z",
+  "slug": "default",
+  "name": "Starter Blog",
+  "description": "A minimal Ferro example: a blog with Posts and Authors.",
+  "primary_url": "http://localhost:8080",
+  "locales": ["en"],
+  "default_locale": "en",
+  "settings": {
+    "timezone": "UTC",
+    "preview_secret": null,
+    "allow_public_signup": false,
+    "extras": {}
+  },
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z"
+}

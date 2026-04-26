@@ -1,0 +1,19 @@
+{
+  "id": "01KQ3X7A32BAP6T4SF7Z4Z6YKF",
+  "slug": "default",
+  "name": "Default",
+  "description": null,
+  "primary_url": null,
+  "locales": [
+    "en"
+  ],
+  "default_locale": "en",
+  "settings": {
+    "timezone": null,
+    "preview_secret": null,
+    "allow_public_signup": false,
+    "extras": null
+  },
+  "created_at": "2026-04-26T03:27:10.433989Z",
+  "updated_at": "2026-04-26T03:27:10.433989Z"
+}
