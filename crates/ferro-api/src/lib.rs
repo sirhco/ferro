@@ -3,6 +3,7 @@
 #![deny(rust_2018_idioms, unreachable_pub)]
 
 pub mod auth;
+pub mod csrf;
 pub mod error;
 pub mod graphql;
 pub mod openapi;
@@ -14,6 +15,7 @@ pub mod ui;
 
 use std::sync::Arc;
 
+use axum::middleware;
 use axum::Router;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
@@ -37,6 +39,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(graphql::router())
         .merge(openapi::router())
         .merge(sse::router())
+        .layer(middleware::from_fn(csrf::enforce))
         .layer(compression)
         .layer(cors)
         .layer(trace)

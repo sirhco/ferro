@@ -19,7 +19,6 @@ use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use ferro_core::*;
-use serde::{Deserialize, Serialize};
 use tokio::fs;
 use tokio::sync::RwLock;
 
@@ -31,7 +30,7 @@ pub async fn connect(cfg: &StorageConfig) -> StorageResult<Box<dyn Repository>> 
     let StorageConfig::FsMarkdown { path } = cfg else {
         unreachable!();
     };
-    for sub in ["sites", "types", "users", "roles", "media"] {
+    for sub in ["sites", "types", "users", "roles", "media", "versions"] {
         fs::create_dir_all(path.join("_meta").join(sub)).await?;
     }
     Ok(Box::new(FsMarkdownRepo { root: path.clone(), _guard: RwLock::new(()) }))
@@ -209,6 +208,7 @@ impl Repository for FsMarkdownRepo {
     fn content(&self) -> &dyn ContentRepo { self }
     fn users(&self) -> &dyn UserRepo { self }
     fn media(&self) -> &dyn MediaMetaRepo { self }
+    fn versions(&self) -> &dyn ContentVersionRepo { self }
     async fn migrate(&self) -> StorageResult<()> { Ok(()) }
     async fn health(&self) -> StorageResult<()> {
         if self.root.exists() {
@@ -496,6 +496,52 @@ impl MediaMetaRepo for FsMarkdownRepo {
     async fn upsert(&self, m: Media) -> StorageResult<Media> {
         Self::write_json(&self.meta_path("media", &m.id.to_string()), &m).await?;
         Ok(m)
+    }
+}
+
+#[async_trait]
+impl ContentVersionRepo for FsMarkdownRepo {
+    async fn list(&self, content_id: ContentId) -> StorageResult<Vec<ContentVersion>> {
+        let dir = self.root.join("_meta").join("versions").join(content_id.to_string());
+        let mut out = Vec::new();
+        let mut rd = match fs::read_dir(&dir).await {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+            Err(e) => return Err(StorageError::Io(e)),
+        };
+        while let Some(entry) = rd.next_entry().await? {
+            if let Some(v) = Self::read_json::<ContentVersion>(&entry.path()).await? {
+                out.push(v);
+            }
+        }
+        out.sort_by(|a, b| b.captured_at.cmp(&a.captured_at));
+        Ok(out)
+    }
+
+    async fn get(&self, id: ContentVersionId) -> StorageResult<Option<ContentVersion>> {
+        let mut rd = match fs::read_dir(self.root.join("_meta").join("versions")).await {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(StorageError::Io(e)),
+        };
+        while let Some(per_content) = rd.next_entry().await? {
+            let p = per_content.path().join(format!("{id}.json"));
+            if p.exists() {
+                return Self::read_json(&p).await;
+            }
+        }
+        Ok(None)
+    }
+
+    async fn create(&self, version: ContentVersion) -> StorageResult<ContentVersion> {
+        let dir = self
+            .root
+            .join("_meta")
+            .join("versions")
+            .join(version.content_id.to_string());
+        fs::create_dir_all(&dir).await?;
+        Self::write_json(&dir.join(format!("{}.json", version.id)), &version).await?;
+        Ok(version)
     }
 }
 

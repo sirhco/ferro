@@ -51,6 +51,7 @@ pub fn api_doc() -> OpenApi {
         .schema("Role", role_schema())
         .schema("Media", media_schema())
         .schema("ContentVersion", content_version_schema())
+        .schema("CsrfTokenResponse", csrf_token_response_schema())
         .schema(
             "TypeUpdateResponse",
             type_update_response_schema(),
@@ -75,6 +76,21 @@ pub fn api_doc() -> OpenApi {
                     "Readiness probe (checks storage).",
                     None,
                     text_200(),
+                    None::<Vec<Parameter>>,
+                ),
+            ),
+        )
+        .path(
+            "/api/v1/auth/csrf",
+            PathItem::new(
+                HttpMethod::Get,
+                op(
+                    "auth",
+                    "Mint a CSRF double-submit token. Sets the `ferro_csrf` \
+                     cookie and returns the same value as JSON for SPAs to \
+                     mirror in the `X-CSRF-Token` header on mutating calls.",
+                    None,
+                    json_200_ref("CsrfTokenResponse"),
                     None::<Vec<Parameter>>,
                 ),
             ),
@@ -636,6 +652,21 @@ fn content_version_schema() -> Schema {
             .required("id")
             .required("content_id")
             .required("captured_at")
+            .build(),
+    )
+}
+
+fn csrf_token_response_schema() -> Schema {
+    Schema::Object(
+        ObjectBuilder::new()
+            .schema_type(Type::Object)
+            .property(
+                "token",
+                str_field().description(Some(
+                    "Hex token; mirror in the X-CSRF-Token header on mutating calls.".to_string(),
+                )),
+            )
+            .required("token")
             .build(),
     )
 }

@@ -5,8 +5,9 @@
 use std::collections::BTreeMap;
 
 use ferro_core::{
-    ContentId, ContentQuery, ContentType, ContentTypeId, FieldDef, FieldId, FieldKind, FieldValue,
-    Locale, NewContent, Site, SiteId, SiteSettings, Status, User, UserId,
+    Content, ContentId, ContentQuery, ContentType, ContentTypeId, ContentVersion,
+    ContentVersionId, FieldDef, FieldId, FieldKind, FieldValue, Locale, NewContent, Site, SiteId,
+    SiteSettings, Status, User, UserId,
 };
 use ferro_storage::StorageConfig;
 use time::OffsetDateTime;
@@ -174,6 +175,63 @@ async fn user_role_round_trip() {
 async fn missing_get_returns_none() {
     let (_tmp, repo) = repo().await;
     assert!(repo.content().get(ContentId::new()).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn version_snapshots_round_trip() {
+    let (_tmp, repo) = repo().await;
+    let now = OffsetDateTime::now_utc();
+    let content_id = ContentId::new();
+    let site_id = SiteId::new();
+    let type_id = ContentTypeId::new();
+
+    // Create two snapshots a tick apart so most-recent-first is unambiguous.
+    let v1 = ContentVersion {
+        id: ContentVersionId::new(),
+        content_id,
+        site_id,
+        type_id,
+        slug: "alpha".into(),
+        locale: Locale::default(),
+        status: Status::Draft,
+        data: BTreeMap::from([("title".into(), FieldValue::String("v1".into()))]),
+        author_id: None,
+        captured_at: now,
+        parent_version: None,
+    };
+    let v2 = ContentVersion {
+        id: ContentVersionId::new(),
+        content_id,
+        site_id,
+        type_id,
+        slug: "alpha".into(),
+        locale: Locale::default(),
+        status: Status::Draft,
+        data: BTreeMap::from([("title".into(), FieldValue::String("v2".into()))]),
+        author_id: None,
+        captured_at: now + time::Duration::seconds(1),
+        parent_version: Some(v1.id),
+    };
+    repo.versions().create(v1.clone()).await.unwrap();
+    repo.versions().create(v2.clone()).await.unwrap();
+
+    let listed = repo.versions().list(content_id).await.unwrap();
+    assert_eq!(listed.len(), 2);
+    assert_eq!(listed[0].id, v2.id, "most-recent first");
+    assert_eq!(listed[1].id, v1.id);
+
+    let fetched = repo.versions().get(v1.id).await.unwrap().unwrap();
+    assert_eq!(fetched.id, v1.id);
+
+    // Sanity: unrelated id misses.
+    assert!(repo.versions().get(ContentVersionId::new()).await.unwrap().is_none());
+
+    // Other content id sees nothing.
+    assert!(repo.versions().list(ContentId::new()).await.unwrap().is_empty());
+
+    // Force `Content` import to be used (silences unused warning if linter
+    // ever flips strict mode here).
+    let _: Option<Content> = None;
 }
 
 fn _tmp_path(tmp: &tempfile::TempDir) -> std::path::PathBuf {
