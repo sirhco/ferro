@@ -4,10 +4,11 @@ use std::sync::Arc;
 
 use wasmtime_wasi::{WasiCtx, WasiView};
 
-use crate::capability::Capability;
+use crate::{capability::Capability, hook::HookRegistry};
 
 /// Per-invocation host context. Holds granted capabilities + references back
-/// to the rest of the system.
+/// to the rest of the system. One `HostContext` is created per `wasmtime::Store`
+/// (per plugin invocation) and dropped when the call returns.
 pub struct HostContext {
     pub plugin_name: String,
     pub granted: Vec<Capability>,
@@ -16,17 +17,39 @@ pub struct HostContext {
     pub services: Arc<Services>,
 }
 
-/// Placeholder for the set of services plugins can reach. Wire real impls in
-/// once the surface firms up. For MVP: content repo + logger.
+/// Real services a plugin can reach across the component ABI. Built once at
+/// startup and shared `Arc`-cloned into each `HostContext`.
 pub struct Services {
-    // pub repo: Arc<dyn ferro_storage::Repository>,
-    // pub logger: Arc<dyn Fn(&str, &str) + Send + Sync>,
-    pub _placeholder: (),
+    pub repo: Arc<dyn ferro_storage::Repository>,
+    /// `(level, target, message)` — invoked from the host `log` import.
+    pub logger: Arc<dyn Fn(&str, &str, &str) + Send + Sync>,
+    pub hooks: HookRegistry,
 }
 
-impl Default for Services {
-    fn default() -> Self {
-        Self { _placeholder: () }
+impl Services {
+    /// Build a `Services` with a default `tracing`-backed logger that emits
+    /// under the `ferro::plugin` target with the calling plugin's name in a
+    /// `plugin = …` field.
+    pub fn new(repo: Arc<dyn ferro_storage::Repository>, hooks: HookRegistry) -> Self {
+        let logger: Arc<dyn Fn(&str, &str, &str) + Send + Sync> =
+            Arc::new(|level: &str, target: &str, msg: &str| match level {
+                "trace" => {
+                    tracing::trace!(target: "ferro::plugin", plugin = target, "{msg}")
+                }
+                "debug" => {
+                    tracing::debug!(target: "ferro::plugin", plugin = target, "{msg}")
+                }
+                "warn" => {
+                    tracing::warn!(target: "ferro::plugin", plugin = target, "{msg}")
+                }
+                "error" => {
+                    tracing::error!(target: "ferro::plugin", plugin = target, "{msg}")
+                }
+                _ => {
+                    tracing::info!(target: "ferro::plugin", plugin = target, "{msg}")
+                }
+            });
+        Self { repo, hooks, logger }
     }
 }
 
@@ -48,9 +71,7 @@ fn capability_covers(granted: &Capability, want: &Capability) -> bool {
     use Capability as C;
     match (granted, want) {
         (C::HttpFetch { host: g }, C::HttpFetch { host: w }) => g == "*" || g == w,
-        (C::HttpServe { prefix: g }, C::HttpServe { prefix: w }) => {
-            w.starts_with(g.as_str())
-        }
+        (C::HttpServe { prefix: g }, C::HttpServe { prefix: w }) => w.starts_with(g.as_str()),
         (a, b) => a == b,
     }
 }

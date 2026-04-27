@@ -1,0 +1,26 @@
+[book]
+title = "Ferro Documentation"
+authors = ["Chris Olson"]
+description = "Operator and developer guide for the Ferro CMS."
+language = "en"
+src = "."
+
+[build]
+build-dir = "../target/book"
+create-missing = false
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/chrisolson/ferro"
+edit-url-template = "https://github.com/chrisolson/ferro/edit/main/docs/{path}"
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+limit-results = 30
+heading-split-level = 2

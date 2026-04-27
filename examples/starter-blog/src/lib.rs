@@ -29,3 +29,40 @@ pub struct Author {
     pub bio: Option<String>,
     pub avatar_id: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, ContentType)]
+#[ferro(slug = "page", name = "Page")]
+pub struct Page {
+    pub title: String,
+    pub slug: String,
+    pub seo_description: Option<String>,
+    pub blocks: serde_json::Value,
+    pub cover_image_id: Option<String>,
+    pub published_at: Option<time::OffsetDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ContentType)]
+#[ferro(slug = "product", name = "Product")]
+pub struct Product {
+    pub name: String,
+    pub slug: String,
+    pub price_cents: i64,
+    pub currency: String,
+    pub blocks: serde_json::Value,
+    pub gallery_ids: Vec<String>,
+    pub in_stock: bool,
+    pub published_at: Option<time::OffsetDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ContentType)]
+#[ferro(slug = "event", name = "Event")]
+pub struct Event {
+    pub title: String,
+    pub slug: String,
+    pub starts_at: time::OffsetDateTime,
+    pub ends_at: time::OffsetDateTime,
+    pub venue: Option<String>,
+    pub blocks: serde_json::Value,
+    pub cover_image_id: Option<String>,
+    pub published_at: Option<time::OffsetDateTime>,
+}

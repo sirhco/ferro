@@ -8,7 +8,7 @@ Ferro is an isomorphic CMS built on [Leptos](https://leptos.dev) and [Axum](http
 
 ## Status
 
-**Pre-alpha.** The workspace is scaffolded and compiles the data model, traits, and API surface. Backends, admin UI, and plugin host are progressing per the [roadmap](DESIGN.md#13-roadmap).
+**1.0.0** — released 2026-04-26. All four storage backends (fs-json, fs-markdown, surreal, postgres) are full-CRUD; auth surface is hardened end-to-end (Argon2id + JWT iat-invalidation + refresh rotation + RFC 6238 TOTP + RBAC + per-IP rate limit + CSRF); GraphQL + REST + SSE + WebSocket subs are co-equal; admin UI runs on Leptos SSR + CSR; the wasmtime+component-model plugin host loads real WASM components with capability gates. Performance budgets are CI-enforced (per DESIGN.md §10). See [`CHANGELOG.md`](CHANGELOG.md) for the full version arc and [`DESIGN.md §13`](DESIGN.md#13-roadmap) for the post-1.0 roadmap (edge runtime is v2 — see ADR-0005).
 
 ## Highlights
 
@@ -68,6 +68,24 @@ ferro import site.bundle.json [--mode merge|replace]
 ferro build                    # cargo leptos build --split + brotli
 ferro plugin list|inspect|reload
 ```
+
+## Documentation
+
+- [`docs/getting-started.md`](docs/getting-started.md) — install, init, login.
+- [`docs/architecture.md`](docs/architecture.md) — crate map + request flow.
+- [`docs/configuration.md`](docs/configuration.md) — every `ferro.toml` knob.
+- [`docs/admin-ui.md`](docs/admin-ui.md) — feature tour.
+- [`docs/rest-api.md`](docs/rest-api.md) — endpoint catalog.
+- [`docs/graphql.md`](docs/graphql.md) — queries, mutations, subscriptions, SSE.
+- [`docs/auth.md`](docs/auth.md) — JWT, refresh, TOTP, RBAC, CSRF.
+- [`docs/cli.md`](docs/cli.md) — every `ferro` subcommand.
+- [`docs/storage-backends.md`](docs/storage-backends.md) — fs-json / fs-markdown / surreal / postgres.
+- [`docs/media.md`](docs/media.md) — local / S3 / GCS upload pipeline.
+- [`docs/plugins-webhooks.md`](docs/plugins-webhooks.md) — events, hooks, signing.
+- [`docs/deployment.md`](docs/deployment.md) — Dockerfile, systemd, nginx, hardening.
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — symptoms → fixes.
+
+Full index in [`docs/README.md`](docs/README.md).
 
 ## Design
 

@@ -1,0 +1,24 @@
+{
+  "id": "01HQYP5000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "type_id": "01HQYTQ000000000000000000Z",
+  "slug": "contact",
+  "locale": "en",
+  "status": "published",
+  "data": {
+    "title": "Contact",
+    "slug": "contact",
+    "seo_description": "Reach the Ferro maintainers — issues, PRs, and security disclosures.",
+    "blocks": [
+      { "kind": "heading", "level": 1, "text": "Contact" },
+      { "kind": "paragraph", "text": "The fastest way to reach the project is through GitHub." },
+      { "kind": "list", "ordered": false, "items": ["Issues: github.com/chrisolson/ferro/issues", "Security: open a private advisory on GitHub", "Email: chrisolson22@gmail.com"] },
+      { "kind": "quote", "text": "We aim to triage new issues within a week.", "cite": "Maintainers" }
+    ],
+    "cover_image_id": null
+  },
+  "author_id": null,
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z",
+  "published_at": "2026-04-26T00:00:00Z"
+}

@@ -1,0 +1,58 @@
+{
+  "id": "01HQYTA000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "slug": "author",
+  "name": "Author",
+  "description": "Person who writes posts. One row per byline.",
+  "fields": [
+    {
+      "id": "01HQYFA100000000000000000Z",
+      "slug": "name",
+      "name": "Name",
+      "help": "Display name.",
+      "kind": { "type": "text", "multiline": false, "max": 120 },
+      "required": true,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFA200000000000000000Z",
+      "slug": "handle",
+      "name": "Handle",
+      "help": "URL-safe slug used on author pages.",
+      "kind": { "type": "slug", "source_field": "name" },
+      "required": true,
+      "localized": false,
+      "unique": true,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFA300000000000000000Z",
+      "slug": "bio",
+      "name": "Bio",
+      "help": "Short biography (markdown).",
+      "kind": { "type": "rich_text", "format": "markdown" },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    },
+    {
+      "id": "01HQYFA400000000000000000Z",
+      "slug": "avatar_id",
+      "name": "Avatar",
+      "help": "Profile picture.",
+      "kind": { "type": "media", "multiple": false, "accept": ["image/jpeg", "image/png", "image/webp"] },
+      "required": false,
+      "localized": false,
+      "unique": false,
+      "hidden": false
+    }
+  ],
+  "singleton": false,
+  "title_field": "name",
+  "slug_field": "handle",
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z"
+}

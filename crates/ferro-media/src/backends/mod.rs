@@ -1,6 +1,4 @@
-use crate::config::MediaConfig;
-use crate::error::{MediaError, MediaResult};
-use crate::store::MediaStore;
+use crate::{config::MediaConfig, error::MediaResult, store::MediaStore};
 
 #[cfg(feature = "gcs")]
 pub mod gcs;

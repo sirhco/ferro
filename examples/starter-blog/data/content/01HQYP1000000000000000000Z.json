@@ -1,0 +1,20 @@
+{
+  "id": "01HQYP1000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "type_id": "01HQYTP000000000000000000Z",
+  "slug": "hello-ferro",
+  "locale": "en",
+  "status": "published",
+  "data": {
+    "title": "Hello, Ferro",
+    "slug": "hello-ferro",
+    "excerpt": "First post in a brand-new Ferro instance. A walkthrough of why we picked Rust for the entire stack.",
+    "body": "# Hello, Ferro\n\nThis is the first post in a brand-new [Ferro](https://github.com/chrisolson/ferro) instance. The whole CMS — server, admin UI, plugin host — is Rust. Same language top to bottom, same tooling, same compiler diagnostics.\n\n## Why Rust everywhere\n\n- **Memory safety by default.** No null pointers, no use-after-free, no data races at compile time.\n- **One toolchain.** `cargo` builds the server, the WASM bundle, and the integration tests.\n- **Performance per dollar.** A 1 vCPU instance handles thousands of requests per second before you have to think about it.\n\n## What's next\n\nPoke around the admin (`/admin`), wire up an outbound webhook in `ferro.toml`, swap the storage backend to Postgres for production. Each subsystem is decoupled — feature-gate what you don't use.",
+    "tags": ["intro", "rust", "ferro"],
+    "author_id": "01HQYAJ000000000000000000Z"
+  },
+  "author_id": null,
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z",
+  "published_at": "2026-04-26T00:00:00Z"
+}

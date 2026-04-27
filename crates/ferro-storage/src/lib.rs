@@ -10,11 +10,12 @@ pub mod backends;
 pub mod config;
 pub mod error;
 pub mod repo;
+pub mod schema;
 
 pub use config::StorageConfig;
 pub use error::{StorageError, StorageResult};
 pub use repo::{
-    ContentRepo, ContentTypeRepo, MediaMetaRepo, Repository, SiteRepo, UserRepo,
+    ContentRepo, ContentTypeRepo, ContentVersionRepo, MediaMetaRepo, Repository, SiteRepo, UserRepo,
 };
 
 /// Connect to the backend described by `cfg`. The returned box is the root

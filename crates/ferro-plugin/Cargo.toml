@@ -9,6 +9,7 @@ description = "Ferro WASM plugin host built on wasmtime + the component model."
 
 [dependencies]
 ferro-core.workspace = true
+ferro-storage.workspace = true
 
 async-trait.workspace = true
 thiserror.workspace = true
@@ -23,3 +24,16 @@ futures.workspace = true
 
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
+
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+axum = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+time = { workspace = true }
+ferro-storage = { workspace = true, features = ["fs-json"] }
+tracing-subscriber.workspace = true
+tempfile = "3"

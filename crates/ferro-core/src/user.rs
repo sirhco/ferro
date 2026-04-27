@@ -5,18 +5,23 @@ use zeroize_hack::ZeroizeHash;
 mod zeroize_hack {
     /// Marker type for hashes that should be zeroized when dropped.
     /// Actual zeroize wiring lives in `ferro-auth`; here we just model the shape.
-    pub type ZeroizeHash = String;
+    pub(super) type ZeroizeHash = String;
 }
 
 use crate::id::{RoleId, UserId};
 
+/// Persisted user record. Round-trips through serde with `password_hash`
+/// included so storage backends can preserve the hash. **API layers must call
+/// [`User::redact_secrets`] before returning a `User` over the wire** — there
+/// is no automatic skip-on-serialize because doing so would silently strip the
+/// hash on every storage write too.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: UserId,
     pub email: String,
     pub handle: String,
     pub display_name: Option<String>,
-    #[serde(skip_serializing)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password_hash: Option<ZeroizeHash>,
     pub roles: Vec<RoleId>,
     #[serde(default)]
@@ -25,11 +30,40 @@ pub struct User {
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339::option", default)]
     pub last_login: Option<OffsetDateTime>,
+    /// Last time the password (or any other event that should invalidate
+    /// outstanding JWTs) changed. The auth middleware rejects tokens whose
+    /// `iat` precedes this timestamp, providing logout-all-sessions semantics
+    /// without a stateful denylist.
+    #[serde(with = "time::serde::rfc3339::option", default)]
+    pub password_changed_at: Option<OffsetDateTime>,
+    /// Base32-encoded TOTP secret. When present, login becomes a two-step
+    /// flow: email+password returns an `mfa_token`, which the client redeems
+    /// at `/api/v1/auth/totp/login` along with the 6-digit authenticator
+    /// code. `None` ⇒ MFA disabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totp_secret: Option<String>,
 }
 
 impl User {
     #[must_use]
     pub fn is_active(&self) -> bool {
         self.active
+    }
+
+    /// Drop secrets that must never leave the API boundary — the password
+    /// hash and the TOTP secret. Call this on every code path that returns a
+    /// `User` to a client (REST handlers, GraphQL resolvers, export bundles).
+    /// Callers that need to convey "TOTP is on" should attach a separate
+    /// boolean flag rather than leaking the secret.
+    pub fn redact_secrets(&mut self) {
+        self.password_hash = None;
+        self.totp_secret = None;
+    }
+
+    /// Convenience: return a redacted clone.
+    #[must_use]
+    pub fn redacted(mut self) -> Self {
+        self.redact_secrets();
+        self
     }
 }

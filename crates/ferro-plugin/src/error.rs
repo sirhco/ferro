@@ -24,6 +24,9 @@ pub enum PluginError {
 
     #[error("toml: {0}")]
     Toml(#[from] toml::de::Error),
+
+    #[error("{0}")]
+    Other(String),
 }
 
 impl From<wasmtime::Error> for PluginError {

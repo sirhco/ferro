@@ -21,3 +21,21 @@ allow_public_signup = false
 dir = "./plugins"
 max_memory_mb = 128
 fuel_per_request = 10_000_000
+
+# Capability grants per plugin. Drop the matching .wasm + plugin.toml into
+# plugins/<name>/ to enable. See examples/plugin-* and docs/plugin-walkthrough.md.
+[[plugins.grants]]
+name = "hello"
+capabilities = ["logs"]
+
+[[plugins.grants]]
+name = "seo"
+capabilities = ["logs", "content.read"]
+
+[[plugins.grants]]
+name = "audit"
+capabilities = ["logs"]
+
+[[plugins.grants]]
+name = "panic"
+capabilities = ["logs"]

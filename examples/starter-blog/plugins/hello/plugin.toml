@@ -1,0 +1,6 @@
+name = "hello"
+version = "0.1.0"
+description = "Logs every content.published event."
+entry = "plugin.wasm"
+capabilities = ["logs"]
+hooks = ["content.published"]

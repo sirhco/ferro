@@ -59,8 +59,10 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash   TEXT,
     roles           TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     active          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL,
-    last_login      TIMESTAMPTZ
+    created_at          TIMESTAMPTZ NOT NULL,
+    last_login          TIMESTAMPTZ,
+    password_changed_at TIMESTAMPTZ,
+    totp_secret         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS media (

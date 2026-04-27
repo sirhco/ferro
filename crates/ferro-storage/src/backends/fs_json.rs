@@ -12,18 +12,19 @@ use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use ferro_core::*;
-use tokio::fs;
-use tokio::sync::RwLock;
+use tokio::{fs, sync::RwLock};
 
-use crate::config::StorageConfig;
-use crate::error::{StorageError, StorageResult};
-use crate::repo::*;
+use crate::{
+    config::StorageConfig,
+    error::{StorageError, StorageResult},
+    repo::*,
+};
 
 pub async fn connect(cfg: &StorageConfig) -> StorageResult<Box<dyn Repository>> {
     let StorageConfig::FsJson { path } = cfg else {
         unreachable!();
     };
-    for sub in ["sites", "types", "content", "users", "roles", "media"] {
+    for sub in ["sites", "types", "content", "users", "roles", "media", "versions"] {
         fs::create_dir_all(path.join(sub)).await?;
     }
     Ok(Box::new(FsJsonRepo { root: path.clone(), _guard: RwLock::new(()) }))
@@ -57,7 +58,22 @@ impl FsJsonRepo {
 
     async fn write<T: serde::Serialize>(path: &Path, v: &T) -> StorageResult<()> {
         let bytes = serde_json::to_vec_pretty(v).map_err(|e| StorageError::Serde(e.to_string()))?;
-        fs::write(path, bytes).await?;
+        // Atomic write: stage to a sibling tmp file, then rename. Concurrent
+        // readers (e.g. the public site reading the same data dir) never see
+        // a partial file because rename is atomic on POSIX same-fs paths.
+        let tmp = match path.file_name() {
+            Some(name) => path.with_file_name(format!(
+                ".{}.tmp.{}",
+                name.to_string_lossy(),
+                std::process::id()
+            )),
+            None => path.with_extension("tmp"),
+        };
+        fs::write(&tmp, bytes).await?;
+        if let Err(e) = fs::rename(&tmp, path).await {
+            let _ = fs::remove_file(&tmp).await;
+            return Err(StorageError::Io(e));
+        }
         Ok(())
     }
 }
@@ -77,6 +93,9 @@ impl Repository for FsJsonRepo {
         self
     }
     fn media(&self) -> &dyn MediaMetaRepo {
+        self
+    }
+    fn versions(&self) -> &dyn ContentVersionRepo {
         self
     }
 
@@ -138,7 +157,7 @@ impl ContentTypeRepo for FsJsonRepo {
         Self::read(&self.path("types", &id.to_string())).await
     }
     async fn by_slug(&self, site: SiteId, slug: &str) -> StorageResult<Option<ContentType>> {
-        for t in self.list(site).await? {
+        for t in ContentTypeRepo::list(self, site).await? {
             if t.slug == slug {
                 return Ok(Some(t));
             }
@@ -208,6 +227,14 @@ impl ContentRepo for FsJsonRepo {
                 if q.locale.as_ref().is_some_and(|l| l != &c.locale) {
                     continue;
                 }
+                if let Some(needle) = q.search.as_deref() {
+                    let needle = needle.to_lowercase();
+                    let hay = serde_json::to_string(&c.data).unwrap_or_default().to_lowercase();
+                    let slug_match = c.slug.to_lowercase().contains(&needle);
+                    if !slug_match && !hay.contains(&needle) {
+                        continue;
+                    }
+                }
                 items.push(c);
             }
         }
@@ -269,6 +296,11 @@ impl ContentRepo for FsJsonRepo {
         }
         Ok(())
     }
+
+    async fn upsert(&self, content: Content) -> StorageResult<Content> {
+        Self::write(&self.path("content", &content.id.to_string()), &content).await?;
+        Ok(content)
+    }
 }
 
 #[async_trait]
@@ -325,6 +357,13 @@ impl UserRepo for FsJsonRepo {
         Self::write(&self.path("roles", &role.id.to_string()), &role).await?;
         Ok(role)
     }
+    async fn delete_role(&self, id: RoleId) -> StorageResult<()> {
+        let p = self.path("roles", &id.to_string());
+        if p.exists() {
+            fs::remove_file(p).await?;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -354,5 +393,61 @@ impl MediaMetaRepo for FsJsonRepo {
             fs::remove_file(p).await?;
         }
         Ok(())
+    }
+    async fn upsert(&self, m: Media) -> StorageResult<Media> {
+        Self::write(&self.path("media", &m.id.to_string()), &m).await?;
+        Ok(m)
+    }
+}
+
+#[async_trait]
+impl ContentVersionRepo for FsJsonRepo {
+    async fn list(
+        &self,
+        content_id: ferro_core::ContentId,
+    ) -> StorageResult<Vec<ferro_core::ContentVersion>> {
+        let dir = self.root.join("versions").join(content_id.to_string());
+        let mut out = Vec::new();
+        let mut rd = match fs::read_dir(&dir).await {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+            Err(e) => return Err(StorageError::Io(e)),
+        };
+        while let Some(entry) = rd.next_entry().await? {
+            if let Some(v) = Self::read::<ferro_core::ContentVersion>(&entry.path()).await? {
+                out.push(v);
+            }
+        }
+        out.sort_by(|a, b| b.captured_at.cmp(&a.captured_at));
+        Ok(out)
+    }
+    async fn get(
+        &self,
+        id: ferro_core::ContentVersionId,
+    ) -> StorageResult<Option<ferro_core::ContentVersion>> {
+        // Versions are filed under their content's directory; brute-force scan
+        // since the wire id doesn't carry the parent. Fine for fs-json's
+        // demo-scale workloads; SQL backends index this on `content_id`.
+        let mut rd = match fs::read_dir(self.root.join("versions")).await {
+            Ok(rd) => rd,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(StorageError::Io(e)),
+        };
+        while let Some(per_content) = rd.next_entry().await? {
+            let p = per_content.path().join(format!("{id}.json"));
+            if p.exists() {
+                return Self::read(&p).await;
+            }
+        }
+        Ok(None)
+    }
+    async fn create(
+        &self,
+        version: ferro_core::ContentVersion,
+    ) -> StorageResult<ferro_core::ContentVersion> {
+        let dir = self.root.join("versions").join(version.content_id.to_string());
+        fs::create_dir_all(&dir).await?;
+        Self::write(&dir.join(format!("{}.json", version.id)), &version).await?;
+        Ok(version)
     }
 }

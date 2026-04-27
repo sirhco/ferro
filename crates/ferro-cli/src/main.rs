@@ -4,15 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-
-mod build;
-mod config;
-mod export;
-mod import;
-mod init;
-mod migrate;
-mod plugin;
-mod serve;
+use ferro_cli::{admin, budgets, build, export, import, init, migrate, plugin, serve};
 
 /// Ferro — Rust-powered content engine.
 #[derive(Debug, Parser)]
@@ -40,9 +32,15 @@ pub enum Cmd {
     Import(import::Args),
     /// Build production assets (runs cargo-leptos and brotli-compresses output).
     Build(build::Args),
+    /// Check brotli wasm bundle sizes against per-route + aggregate budgets
+    /// (see DESIGN.md §10).
+    Budgets(budgets::Args),
     /// Plugin management.
     #[command(subcommand)]
     Plugin(plugin::Cmd),
+    /// Operator tooling: bootstrap admin users + roles directly against the repo.
+    #[command(subcommand)]
+    Admin(admin::Cmd),
 }
 
 #[tokio::main]
@@ -62,6 +60,8 @@ async fn main() -> Result<()> {
         Cmd::Export(a) => export::run(a, cli.config).await,
         Cmd::Import(a) => import::run(a, cli.config).await,
         Cmd::Build(a) => build::run(a).await,
+        Cmd::Budgets(a) => budgets::run(a).await,
         Cmd::Plugin(a) => plugin::run(a, cli.config).await,
+        Cmd::Admin(a) => admin::run(a, cli.config).await,
     }
 }

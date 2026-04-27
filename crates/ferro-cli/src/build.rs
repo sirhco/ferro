@@ -17,11 +17,17 @@ pub struct Args {
     #[arg(long)]
     pub skip_leptos: bool,
 
+    /// cargo-leptos project name (matches `[[workspace.metadata.leptos]] name`).
+    /// Defaults to `ferro-admin`. Use `starter-site` for the public site.
+    #[arg(long, default_value = "ferro-admin")]
+    pub project: String,
+
     /// Brotli quality (0–11).
     #[arg(long, default_value_t = 11)]
     pub quality: u8,
 
     /// Asset output directory (cargo-leptos default = target/site).
+    /// For starter-site, override with `--site-dir target/starter-site`.
     #[arg(long, default_value = "target/site")]
     pub site_dir: PathBuf,
 }
@@ -29,14 +35,7 @@ pub struct Args {
 pub async fn run(args: Args) -> Result<()> {
     if !args.skip_leptos {
         let status = Command::new("cargo")
-            .args([
-                "leptos",
-                "build",
-                "--project",
-                "ferro-admin",
-                "--release",
-                "--split",
-            ])
+            .args(["leptos", "build", "--project", &args.project, "--release", "--split"])
             .status()
             .await
             .context("running cargo leptos; install with `cargo install cargo-leptos`")?;
@@ -89,11 +88,8 @@ async fn compress_file(p: &Path, q: u8) -> Result<()> {
         PathBuf::from(s)
     };
     let mut out = Vec::with_capacity(bytes.len() / 2);
-    let params = brotli::enc::BrotliEncoderParams {
-        quality: q as i32,
-        lgwin: 22,
-        ..Default::default()
-    };
+    let params =
+        brotli::enc::BrotliEncoderParams { quality: q as i32, lgwin: 22, ..Default::default() };
     brotli::BrotliCompress(&mut BufReader::new(Cursor::new(&bytes)), &mut out, &params)
         .context("brotli encode")?;
     tokio::fs::write(out_path, out).await?;

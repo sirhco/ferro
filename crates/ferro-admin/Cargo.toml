@@ -12,7 +12,15 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-hydrate = ["leptos/hydrate", "dep:wasm-bindgen"]
+hydrate = [
+    "leptos/csr",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:gloo-net",
+    "dep:js-sys",
+    "dep:web-sys",
+    "dep:console_error_panic_hook",
+]
 ssr = [
     "leptos/ssr",
     "leptos_axum/default",
@@ -31,28 +39,41 @@ leptos_meta.workspace = true
 leptos_router.workspace = true
 leptos_axum = { workspace = true, optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+gloo-net = { version = "0.6", optional = true, default-features = false, features = ["http", "json"] }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "Document",
+    "Element",
+    "EventSource",
+    "FormData",
+    "File",
+    "FileList",
+    "HtmlFormElement",
+    "HtmlIFrameElement",
+    "HtmlInputElement",
+    "Location",
+    "MessageEvent",
+    "Storage",
+    "Window",
+] }
+console_error_panic_hook = { version = "0.1", optional = true }
 
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
+
+# wasm32: opt getrandom 0.3 into the wasm_js backend so any transitively
+# pulled-in entropy callers (rand, server_fn, etc.) build for the browser.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+uuid = { version = "1", features = ["v4", "v7", "serde", "js"] }
 
 # SSR-only dependencies are gated via the `ssr` feature.
 axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing.workspace = true
 
-[package.metadata.leptos]
-output-name = "ferro_admin"
-site-root = "target/site"
-site-pkg-dir = "pkg"
-style-file = "style/main.scss"
-assets-dir = "public"
-site-addr = "127.0.0.1:3001"
-reload-port = 3002
-browserquery = "defaults"
-env = "DEV"
-bin-features = ["ssr"]
-lib-features = ["hydrate"]
-# Enable cargo leptos's route-level split + brotli compression.
-lib-profile-release = "release-wasm"
-split = true
-lib-cargo-args = ["-Zbuild-std=std,panic_abort", "-Zbuild-std-features=panic_immediate_abort"]
+# Leptos build config for this crate is declared at the workspace root in
+# `[[workspace.metadata.leptos]]` since cargo-leptos drives both the
+# `ferro-cli` SSR binary and the `ferro-admin` WASM lib in one project.

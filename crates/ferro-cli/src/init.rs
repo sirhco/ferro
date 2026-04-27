@@ -22,9 +22,7 @@ pub async fn run(args: Args) -> Result<()> {
     if cfg_path.exists() {
         anyhow::bail!("{} already exists", cfg_path.display());
     }
-    let backend = args
-        .storage
-        .unwrap_or_else(|| "surreal".into());
+    let backend = args.storage.unwrap_or_else(|| "surreal".into());
     let cfg = starter_config(&backend);
     tokio::fs::write(&cfg_path, cfg).await?;
     tokio::fs::create_dir_all(dir.join("data")).await?;
@@ -38,25 +36,33 @@ pub async fn run(args: Args) -> Result<()> {
 
 fn starter_config(backend: &str) -> String {
     let storage = match backend {
-        "surreal" => r#"[storage]
+        "surreal" => {
+            r#"[storage]
 kind = "surreal-embedded"
 path = "./data/ferro.db"
 namespace = "ferro"
 database = "main"
-"#,
-        "fs-json" => r#"[storage]
+"#
+        }
+        "fs-json" => {
+            r#"[storage]
 kind = "fs-json"
 path = "./data/json"
-"#,
-        "fs-markdown" => r#"[storage]
+"#
+        }
+        "fs-markdown" => {
+            r#"[storage]
 kind = "fs-markdown"
 path = "./content"
-"#,
-        "postgres" => r#"[storage]
+"#
+        }
+        "postgres" => {
+            r#"[storage]
 kind = "postgres"
 url = "postgres://ferro:ferro@localhost/ferro"
 max_conns = 10
-"#,
+"#
+        }
         _ => unreachable!(),
     };
     format!(
@@ -74,6 +80,8 @@ base_url = "http://localhost:8080/media"
 [auth]
 session_secret = "CHANGE_ME_{random}"
 jwt_issuer = "ferro"
+# Override via env: FERRO_JWT_SECRET=...
+jwt_secret = "CHANGE_ME_JWT_{random}"
 allow_public_signup = false
 
 [plugins]

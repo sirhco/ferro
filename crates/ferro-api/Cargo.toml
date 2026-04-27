@@ -12,6 +12,8 @@ ferro-core.workspace = true
 ferro-storage.workspace = true
 ferro-auth.workspace = true
 ferro-media.workspace = true
+ferro-plugin.workspace = true
+ferro-editor.workspace = true
 
 async-trait.workspace = true
 thiserror.workspace = true
@@ -19,6 +21,7 @@ serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
 tokio.workspace = true
+tokio-stream.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 bytes.workspace = true
@@ -35,5 +38,16 @@ hyper.workspace = true
 async-graphql.workspace = true
 async-graphql-axum.workspace = true
 
+mime_guess.workspace = true
+
 utoipa.workspace = true
 utoipa-swagger-ui.workspace = true
+
+[dev-dependencies]
+ferro-storage = { workspace = true, features = ["fs-json"] }
+ferro-media = { workspace = true }
+tempfile = "3"
+tower = { workspace = true, features = ["util"] }
+http-body-util = "0.1"
+reqwest = { workspace = true, features = ["json", "stream"] }
+tokio-tungstenite = "0.24"

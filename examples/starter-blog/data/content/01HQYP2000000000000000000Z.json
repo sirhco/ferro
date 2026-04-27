@@ -1,0 +1,20 @@
+{
+  "id": "01HQYP2000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "type_id": "01HQYTP000000000000000000Z",
+  "slug": "isomorphic-rust",
+  "locale": "en",
+  "status": "published",
+  "data": {
+    "title": "Isomorphic Rust, route-split WASM",
+    "slug": "isomorphic-rust",
+    "excerpt": "Same code on the server and the browser, with route-level WASM chunks shipped under brotli.",
+    "body": "# Isomorphic Rust, route-split WASM\n\nFerro's admin UI is a Leptos app that runs on the server (SSR shell) **and** the browser (CSR mount). Same component tree, same types, same compiler errors when you typo a field name.\n\n## How the bundle stays small\n\n- `cargo leptos build --split` carves the WASM into per-route chunks.\n- `wasm-opt` trims dead code.\n- The build pipeline writes brotli-precompressed `.br` siblings.\n- `tower-http`'s `ServeDir::precompressed_br()` honors `Accept-Encoding` and serves the `.br` straight to the browser.\n\nResult: a small initial payload, with subsequent routes pulled lazily.\n\n## What you give up\n\nYou take a hit on cold compile time. The first build of the WASM lib is several minutes; incremental rebuilds are seconds. For most teams that trade compiles for type-safety on every line of UI code, the math works.\n\n## What you get\n\n- Field editors share types with the server's storage layer. Renaming a field is one PR.\n- Server functions are typed end-to-end. No JSON shape mismatches.\n- Memory safety extends to the editor — XSS via mistakenly rendered raw HTML is a compile error.",
+    "tags": ["rust", "leptos", "wasm", "performance"],
+    "author_id": "01HQYAJ000000000000000000Z"
+  },
+  "author_id": null,
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z",
+  "published_at": "2026-04-26T00:00:00Z"
+}

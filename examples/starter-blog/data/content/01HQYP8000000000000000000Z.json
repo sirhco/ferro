@@ -1,0 +1,25 @@
+{
+  "id": "01HQYP8000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "type_id": "01HQYTR000000000000000000Z",
+  "slug": "ferro-cloud-enterprise",
+  "locale": "en",
+  "status": "published",
+  "data": {
+    "name": "Ferro Cloud — Enterprise",
+    "slug": "ferro-cloud-enterprise",
+    "price_cents": 49900,
+    "currency": "USD",
+    "blocks": [
+      { "kind": "heading", "level": 2, "text": "For organizations with compliance needs" },
+      { "kind": "paragraph", "text": "Dedicated infra, SSO, SLA, signed plugin policy enforcement." },
+      { "kind": "list", "ordered": false, "items": ["Unlimited sites", "Dedicated cluster", "SSO (SAML/OIDC)", "99.9% SLA", "Signed-plugin policy", "24/7 support"] }
+    ],
+    "gallery_ids": [],
+    "in_stock": true
+  },
+  "author_id": null,
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z",
+  "published_at": "2026-04-26T00:00:00Z"
+}

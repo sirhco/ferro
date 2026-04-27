@@ -1,0 +1,17 @@
+[package]
+name = "plugin-panic"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Ferro plugin: intentionally panics to demonstrate host fault isolation."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.35"
+
+# Standalone — not a workspace member. Build with:
+#   cargo build --manifest-path examples/plugin-panic/Cargo.toml --release --target wasm32-wasip2
+[workspace]

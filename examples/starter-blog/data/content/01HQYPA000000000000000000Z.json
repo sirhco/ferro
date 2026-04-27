@@ -1,0 +1,24 @@
+{
+  "id": "01HQYPA000000000000000000Z",
+  "site_id": "01HQYHA000000000000000000Z",
+  "type_id": "01HQYTS000000000000000000Z",
+  "slug": "ferro-launch-meetup",
+  "locale": "en",
+  "status": "published",
+  "data": {
+    "title": "Ferro 1.0 Launch Meetup",
+    "slug": "ferro-launch-meetup",
+    "starts_at": "2026-03-12T18:30:00Z",
+    "ends_at": "2026-03-12T21:00:00Z",
+    "venue": "Online (Discord stage)",
+    "blocks": [
+      { "kind": "paragraph", "text": "We shipped 1.0. Come hear what's in it and what's next." },
+      { "kind": "list", "ordered": false, "items": ["Live demo of the WASM plugin sandbox", "Q&A with maintainers", "Roadmap for 1.x"] }
+    ],
+    "cover_image_id": null
+  },
+  "author_id": null,
+  "created_at": "2026-04-26T00:00:00Z",
+  "updated_at": "2026-04-26T00:00:00Z",
+  "published_at": "2026-04-26T00:00:00Z"
+}
