@@ -1,62 +1,57 @@
-mod data;
-mod render;
-mod seo;
-mod views;
+use std::{env, time::Duration};
 
-use std::env;
-use std::net::SocketAddr;
-use std::time::Duration;
-
-use axum::body::Body;
-use axum::extract::State;
-use axum::http::{Request, StatusCode, Uri};
-use axum::response::{IntoResponse, Response};
-use axum::routing::any;
-use axum::Router;
+use axum::{
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode, Uri},
+    response::{IntoResponse, Response},
+    routing::any,
+    Router,
+};
 use leptos::prelude::*;
 use leptos_axum::{generate_route_list, LeptosRoutes};
-use leptos_meta::*;
-
-use crate::data::ApiClient;
-use crate::seo::SeoLoader;
-use crate::views::App;
+use starter_site_app::{shell, App};
+use tower_http::{services::ServeDir, set_header::SetResponseHeaderLayer};
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
     let api_base = env::var("FERRO_API_BASE").unwrap_or_else(|_| "http://127.0.0.1:8080".into());
-    let listen: SocketAddr = env::var("STARTER_SITE_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:3001".into())
-        .parse()
-        .expect("STARTER_SITE_ADDR");
-    let seo_root: std::path::PathBuf = env::var("FERRO_SEO_ROOT")
-        .unwrap_or_else(|_| "plugins/seo/data".into())
-        .into();
+    let seo_root: std::path::PathBuf =
+        env::var("FERRO_SEO_ROOT").unwrap_or_else(|_| "plugins/seo/data".into()).into();
 
-    let leptos_options = LeptosOptions::builder()
-        .output_name("starter-site")
-        .site_root("target/site".to_string())
-        .site_pkg_dir("pkg".to_string())
-        .build();
+    let conf = get_configuration(None).expect("leptos config: run via cargo-leptos");
+    let leptos_options = conf.leptos_options;
+    let listen = leptos_options.site_addr;
     let routes = generate_route_list(App);
 
-    let api = ApiClient::new(api_base.clone());
-    let seo_loader = SeoLoader::new(seo_root);
+    let api = starter_site_app::data::ApiClient::new(api_base.clone());
+    let seo = starter_site_app::seo::SeoLoader::new(seo_root);
 
-    let state = SiteState {
-        api_base: api_base.clone(),
-        options: leptos_options.clone(),
-    };
+    let state = SiteState { api_base: api_base.clone(), options: leptos_options.clone() };
+
+    let pkg_dir = std::path::Path::new(leptos_options.site_root.as_ref())
+        .join(leptos_options.site_pkg_dir.as_ref());
+    let pkg_serve = ServeDir::new(&pkg_dir).precompressed_br().precompressed_gzip();
 
     let app = Router::new()
+        .nest_service(
+            "/pkg",
+            tower::ServiceBuilder::new()
+                .layer(SetResponseHeaderLayer::overriding(
+                    axum::http::header::CACHE_CONTROL,
+                    axum::http::HeaderValue::from_static("public, max-age=31536000, immutable"),
+                ))
+                .service(pkg_serve),
+        )
         .route("/media/{*path}", any(proxy_media))
         .leptos_routes_with_context(
             &state,
             routes,
             {
                 let api = api.clone();
-                let seo = seo_loader.clone();
+                let seo = seo.clone();
                 move || {
                     provide_context(api.clone());
                     provide_context(seo.clone());
@@ -71,7 +66,7 @@ async fn main() {
         .with_state(state);
 
     tracing::info!(addr = %listen, api_base, "starter-site listening");
-    let listener = tokio::net::TcpListener::bind(listen).await.expect("bind");
+    let listener = tokio::net::TcpListener::bind(&listen).await.expect("bind");
     axum::serve(listener, app).await.expect("serve");
 }
 
@@ -94,10 +89,8 @@ async fn proxy_media(
 ) -> impl IntoResponse {
     let path = uri.path();
     let upstream = format!("{}{}", state.api_base.trim_end_matches('/'), path);
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .expect("reqwest");
+    let client =
+        reqwest::Client::builder().timeout(Duration::from_secs(15)).build().expect("reqwest");
     let mut builder = client.request(req.method().clone(), &upstream);
     for (k, v) in req.headers().iter() {
         if k == "host" {
@@ -118,24 +111,4 @@ async fn proxy_media(
         out.headers_mut().insert(k, v.clone());
     }
     out
-}
-
-fn shell(options: LeptosOptions) -> impl IntoView {
-    view! {
-        <!DOCTYPE html>
-        <html lang="en">
-            <head>
-                <meta charset="utf-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <AutoReload options=options.clone() />
-                <HydrationScripts options/>
-                <MetaTags/>
-                <title>"Ferro Demo"</title>
-                <style>{include_str!("../style/site.css")}</style>
-            </head>
-            <body>
-                <App/>
-            </body>
-        </html>
-    }
 }

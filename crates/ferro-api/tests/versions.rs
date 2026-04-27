@@ -1,10 +1,11 @@
 //! Content version snapshots + restore round-trip.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{
@@ -191,9 +192,7 @@ async fn update_creates_version_then_restore_reverts() {
     // List versions — should have 2 (snapshots before each PATCH).
     let (s, versions) = req_json(
         state.clone(),
-        Request::get("/api/v1/content/post/alpha/versions")
-            .body(Body::empty())
-            .unwrap(),
+        Request::get("/api/v1/content/post/alpha/versions").body(Body::empty()).unwrap(),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
@@ -208,12 +207,10 @@ async fn update_creates_version_then_restore_reverts() {
     let v1_id = arr[1]["id"].as_str().unwrap();
     let (s, restored) = req_json(
         state.clone(),
-        Request::post(format!(
-            "/api/v1/content/post/alpha/versions/{v1_id}/restore"
-        ))
-        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::empty())
-        .unwrap(),
+        Request::post(format!("/api/v1/content/post/alpha/versions/{v1_id}/restore"))
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap(),
     )
     .await;
     assert_eq!(s, StatusCode::OK, "restore: {restored}");
@@ -223,9 +220,7 @@ async fn update_creates_version_then_restore_reverts() {
     // should now have 3 entries.
     let (_s, versions) = req_json(
         state.clone(),
-        Request::get("/api/v1/content/post/alpha/versions")
-            .body(Body::empty())
-            .unwrap(),
+        Request::get("/api/v1/content/post/alpha/versions").body(Body::empty()).unwrap(),
     )
     .await;
     assert_eq!(versions.as_array().unwrap().len(), 3);
@@ -255,13 +250,10 @@ async fn restore_rejects_cross_content_id() {
 
     let (s, _) = req_json(
         state,
-        Request::post(format!(
-            "/api/v1/content/post/alpha/versions/{}/restore",
-            stranger.id
-        ))
-        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::empty())
-        .unwrap(),
+        Request::post(format!("/api/v1/content/post/alpha/versions/{}/restore", stranger.id))
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap(),
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);

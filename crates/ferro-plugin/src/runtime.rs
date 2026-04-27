@@ -5,20 +5,26 @@
 //!  - the `ferro::cms::host::Host` trait the host implements (imports), and
 //!  - the `exports::ferro::cms::guest::Guest` accessor for plugin-side calls.
 
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
-use wasmtime::component::{Component, Linker};
-use wasmtime::{Config, Engine, Store};
+use wasmtime::{
+    component::{Component, Linker},
+    Config, Engine, Store,
+};
 use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtxBuilder};
 
-use crate::capability::Capability;
-use crate::error::{PluginError, PluginResult};
-use crate::host::{HostContext, Services};
-use crate::hook::HookEvent as FerroHookEvent;
-use crate::manifest::PluginManifest;
+use crate::{
+    capability::Capability,
+    error::{PluginError, PluginResult},
+    hook::HookEvent as FerroHookEvent,
+    host::{HostContext, Services},
+    manifest::PluginManifest,
+};
 
 wasmtime::component::bindgen!({
     world: "plugin",
@@ -26,8 +32,7 @@ wasmtime::component::bindgen!({
     async: true,
 });
 
-use ferro::cms::host as wit_host;
-use ferro::cms::types as wit_types;
+use ferro::cms::{host as wit_host, types as wit_types};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
@@ -97,13 +102,7 @@ impl PluginRuntime {
         let sandbox_dir = plugin_dir.join("data");
         // Best-effort sandbox dir creation; plugins that don't write are unaffected.
         let _ = tokio::fs::create_dir_all(&sandbox_dir).await;
-        Ok(PluginHandle {
-            runtime: self.clone(),
-            component,
-            manifest,
-            grants,
-            sandbox_dir,
-        })
+        Ok(PluginHandle { runtime: self.clone(), component, manifest, grants, sandbox_dir })
     }
 }
 
@@ -144,12 +143,7 @@ impl PluginHandle {
     pub fn new_store(&self) -> PluginResult<Store<HostContext>> {
         let mut wasi = WasiCtxBuilder::new();
         if self.sandbox_dir.exists() {
-            wasi.preopened_dir(
-                &self.sandbox_dir,
-                "/data",
-                DirPerms::all(),
-                FilePerms::all(),
-            )?;
+            wasi.preopened_dir(&self.sandbox_dir, "/data", DirPerms::all(), FilePerms::all())?;
         }
         let host = HostContext {
             plugin_name: self.manifest.name.clone(),
@@ -192,7 +186,7 @@ impl PluginHandle {
         if !self.subscribes_to(kind) {
             return Ok(());
         }
-        let wit_evt = match map_event(event, &*self.runtime.services).await {
+        let wit_evt = match map_event(event, &self.runtime.services).await {
             Some(e) => e,
             None => return Ok(()),
         };
@@ -200,16 +194,12 @@ impl PluginHandle {
         let mut store = self.new_store()?;
         let linker = self.linker()?;
         let bindings = Plugin::instantiate_async(&mut store, &self.component, &linker).await?;
-        let result = bindings
-            .ferro_cms_guest()
-            .call_on_event(&mut store, &wit_evt)
-            .await?;
+        let result = bindings.ferro_cms_guest().call_on_event(&mut store, &wit_evt).await?;
         result.map_err(PluginError::Other)
     }
 
     fn subscribes_to(&self, kind: &str) -> bool {
-        self.manifest.hooks.is_empty()
-            || self.manifest.hooks.iter().any(|h| h == kind)
+        self.manifest.hooks.is_empty() || self.manifest.hooks.iter().any(|h| h == kind)
     }
 }
 
@@ -227,26 +217,29 @@ fn event_kind(evt: &FerroHookEvent) -> &'static str {
 /// Translate a host-side [`FerroHookEvent`] into the WIT `hook-event` variant.
 /// Returns `None` for events the WIT ABI doesn't yet expose (currently
 /// `TypeMigrated`).
-async fn map_event(
-    evt: &FerroHookEvent,
-    services: &Services,
-) -> Option<wit_types::HookEvent> {
+async fn map_event(evt: &FerroHookEvent, services: &Services) -> Option<wit_types::HookEvent> {
     match evt {
-        FerroHookEvent::ContentCreated { content, type_slug } => Some(
-            wit_types::HookEvent::ContentCreated(content_to_wit(content, type_slug.as_deref(), services).await),
-        ),
-        FerroHookEvent::ContentUpdated { after, type_slug, .. } => Some(
-            wit_types::HookEvent::ContentUpdated(content_to_wit(after, type_slug.as_deref(), services).await),
-        ),
-        FerroHookEvent::ContentPublished { content, type_slug } => Some(
-            wit_types::HookEvent::ContentPublished(content_to_wit(content, type_slug.as_deref(), services).await),
-        ),
-        FerroHookEvent::ContentDeleted { content_id, slug, .. } => Some(
-            wit_types::HookEvent::ContentDeleted(wit_types::ContentDeleted {
+        FerroHookEvent::ContentCreated { content, type_slug } => {
+            Some(wit_types::HookEvent::ContentCreated(
+                content_to_wit(content, type_slug.as_deref(), services).await,
+            ))
+        }
+        FerroHookEvent::ContentUpdated { after, type_slug, .. } => {
+            Some(wit_types::HookEvent::ContentUpdated(
+                content_to_wit(after, type_slug.as_deref(), services).await,
+            ))
+        }
+        FerroHookEvent::ContentPublished { content, type_slug } => {
+            Some(wit_types::HookEvent::ContentPublished(
+                content_to_wit(content, type_slug.as_deref(), services).await,
+            ))
+        }
+        FerroHookEvent::ContentDeleted { content_id, slug, .. } => {
+            Some(wit_types::HookEvent::ContentDeleted(wit_types::ContentDeleted {
                 content_id: content_id.to_string(),
                 slug: slug.clone(),
-            }),
-        ),
+            }))
+        }
         _ => None,
     }
 }
@@ -283,12 +276,7 @@ async fn content_to_wit(
 
 #[wasmtime::component::__internal::async_trait]
 impl wit_host::Host for HostContext {
-    async fn log(
-        &mut self,
-        level: wit_types::LogLevel,
-        target: String,
-        message: String,
-    ) -> () {
+    async fn log(&mut self, level: wit_types::LogLevel, target: String, message: String) -> () {
         if self.require(&Capability::Logs).is_err() {
             tracing::warn!(
                 target: "ferro::plugin",
@@ -304,14 +292,12 @@ impl wit_host::Host for HostContext {
             wit_types::LogLevel::Warn => "warn",
             wit_types::LogLevel::Error => "error",
         };
-        let display_target = if target.is_empty() { self.plugin_name.as_str() } else { target.as_str() };
+        let display_target =
+            if target.is_empty() { self.plugin_name.as_str() } else { target.as_str() };
         (self.services.logger)(level_s, display_target, &message);
     }
 
-    async fn get_content(
-        &mut self,
-        id: String,
-    ) -> Option<wit_types::Content> {
+    async fn get_content(&mut self, id: String) -> Option<wit_types::Content> {
         if self.require(&Capability::ContentRead).is_err() {
             return None;
         }

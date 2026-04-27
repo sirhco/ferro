@@ -7,15 +7,14 @@
 use std::sync::Arc;
 
 use axum::Router;
-use utoipa::openapi::path::{OperationBuilder, Parameter, ParameterBuilder, ParameterIn};
-use utoipa::openapi::request_body::{RequestBody, RequestBodyBuilder};
-use utoipa::openapi::schema::{ArrayBuilder, ObjectBuilder, Type};
-use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityRequirement, SecurityScheme};
-use utoipa::openapi::tag::TagBuilder;
 use utoipa::openapi::{
-    ComponentsBuilder, ContentBuilder, HttpMethod, InfoBuilder, OpenApi, OpenApiBuilder,
-    PathItem, PathsBuilder, Ref, RefOr, Required, Response, ResponseBuilder, ResponsesBuilder,
-    Schema,
+    path::{OperationBuilder, Parameter, ParameterBuilder, ParameterIn},
+    request_body::{RequestBody, RequestBodyBuilder},
+    schema::{ArrayBuilder, ObjectBuilder, Type},
+    security::{HttpAuthScheme, HttpBuilder, SecurityRequirement, SecurityScheme},
+    tag::TagBuilder,
+    ComponentsBuilder, ContentBuilder, HttpMethod, InfoBuilder, OpenApi, OpenApiBuilder, PathItem,
+    PathsBuilder, Ref, RefOr, Required, Response, ResponseBuilder, ResponsesBuilder, Schema,
 };
 
 use crate::state::AppState;
@@ -25,16 +24,11 @@ pub fn api_doc() -> OpenApi {
     let info = InfoBuilder::new()
         .title("Ferro API")
         .version("0.1.0")
-        .description(Some(
-            "Ferro headless CMS — REST surface. GraphQL lives at /graphql.",
-        ))
+        .description(Some("Ferro headless CMS — REST surface. GraphQL lives at /graphql."))
         .build();
 
     let bearer = SecurityScheme::Http(
-        HttpBuilder::new()
-            .scheme(HttpAuthScheme::Bearer)
-            .bearer_format("JWT")
-            .build(),
+        HttpBuilder::new().scheme(HttpAuthScheme::Bearer).bearer_format("JWT").build(),
     );
 
     let components = ComponentsBuilder::new()
@@ -52,10 +46,7 @@ pub fn api_doc() -> OpenApi {
         .schema("Media", media_schema())
         .schema("ContentVersion", content_version_schema())
         .schema("CsrfTokenResponse", csrf_token_response_schema())
-        .schema(
-            "TypeUpdateResponse",
-            type_update_response_schema(),
-        )
+        .schema("TypeUpdateResponse", type_update_response_schema())
         .schema("PluginInfo", plugin_info_schema())
         .schema("PluginGrantBody", plugin_grant_body_schema())
         .schema("PluginEnabledBody", plugin_enabled_body_schema())
@@ -354,18 +345,12 @@ pub fn api_doc() -> OpenApi {
             .name("auth")
             .description(Some("Login, logout, session introspection."))
             .build(),
-        TagBuilder::new()
-            .name("content")
-            .description(Some("CRUD over content entries."))
-            .build(),
+        TagBuilder::new().name("content").description(Some("CRUD over content entries.")).build(),
         TagBuilder::new()
             .name("types")
             .description(Some("Content-type schema management + migration."))
             .build(),
-        TagBuilder::new()
-            .name("meta")
-            .description(Some("Health and readiness probes."))
-            .build(),
+        TagBuilder::new().name("meta").description(Some("Health and readiness probes.")).build(),
         TagBuilder::new()
             .name("plugins")
             .description(Some(
@@ -396,9 +381,7 @@ fn path_param(name: &str) -> Parameter {
         .name(name)
         .parameter_in(ParameterIn::Path)
         .required(Required::True)
-        .schema(Some(
-            ObjectBuilder::new().schema_type(Type::String).build(),
-        ))
+        .schema(Some(ObjectBuilder::new().schema_type(Type::String).build()))
         .build()
 }
 
@@ -410,10 +393,8 @@ fn op_builder(
     params: Option<Vec<Parameter>>,
 ) -> OperationBuilder {
     let responses = ResponsesBuilder::new().response("200", ok).build();
-    let mut b = OperationBuilder::new()
-        .tag(tag)
-        .summary(Some(summary.to_string()))
-        .responses(responses);
+    let mut b =
+        OperationBuilder::new().tag(tag).summary(Some(summary.to_string())).responses(responses);
     if let Some(body) = body {
         b = b.request_body(Some(body));
     }
@@ -441,9 +422,7 @@ fn json_body_ref(name: &str) -> RequestBody {
     RequestBodyBuilder::new()
         .content(
             "application/json",
-            ContentBuilder::new()
-                .schema(Some(RefOr::Ref(Ref::from_schema_name(name))))
-                .build(),
+            ContentBuilder::new().schema(Some(RefOr::Ref(Ref::from_schema_name(name)))).build(),
         )
         .required(Some(Required::True))
         .build()
@@ -454,25 +433,18 @@ fn json_200_ref(name: &str) -> Response {
         .description("ok")
         .content(
             "application/json",
-            ContentBuilder::new()
-                .schema(Some(RefOr::Ref(Ref::from_schema_name(name))))
-                .build(),
+            ContentBuilder::new().schema(Some(RefOr::Ref(Ref::from_schema_name(name)))).build(),
         )
         .build()
 }
 
 fn json_200_array_ref(name: &str) -> Response {
     let array: RefOr<Schema> = RefOr::T(Schema::Array(
-        ArrayBuilder::new()
-            .items(RefOr::Ref(Ref::from_schema_name(name)))
-            .build(),
+        ArrayBuilder::new().items(RefOr::Ref(Ref::from_schema_name(name))).build(),
     ));
     ResponseBuilder::new()
         .description("ok")
-        .content(
-            "application/json",
-            ContentBuilder::new().schema(Some(array)).build(),
-        )
+        .content("application/json", ContentBuilder::new().schema(Some(array)).build())
         .build()
 }
 
@@ -509,11 +481,9 @@ fn ulid_field() -> ObjectBuilder {
 }
 
 fn rfc3339_field() -> ObjectBuilder {
-    ObjectBuilder::new()
-        .schema_type(Type::String)
-        .format(Some(utoipa::openapi::SchemaFormat::KnownFormat(
-            utoipa::openapi::KnownFormat::DateTime,
-        )))
+    ObjectBuilder::new().schema_type(Type::String).format(Some(
+        utoipa::openapi::SchemaFormat::KnownFormat(utoipa::openapi::KnownFormat::DateTime),
+    ))
 }
 
 fn bool_field() -> ObjectBuilder {
@@ -525,17 +495,11 @@ fn int_field() -> ObjectBuilder {
 }
 
 fn opaque_field(desc: &str) -> ObjectBuilder {
-    ObjectBuilder::new()
-        .schema_type(Type::Object)
-        .description(Some(desc.to_string()))
+    ObjectBuilder::new().schema_type(Type::Object).description(Some(desc.to_string()))
 }
 
 fn array_of(name: &str) -> Schema {
-    Schema::Array(
-        ArrayBuilder::new()
-            .items(RefOr::Ref(Ref::from_schema_name(name)))
-            .build(),
-    )
+    Schema::Array(ArrayBuilder::new().items(RefOr::Ref(Ref::from_schema_name(name))).build())
 }
 
 fn login_body_schema() -> Schema {
@@ -586,19 +550,16 @@ fn site_schema() -> Schema {
             .property("id", ulid_field())
             .property("slug", str_field())
             .property("name", str_field())
+            .property("description", str_field().description(Some("Optional.".to_string())))
+            .property("primary_url", str_field().description(Some("Optional URL.".to_string())))
             .property(
-                "description",
-                str_field().description(Some("Optional.".to_string())),
+                "locales",
+                Schema::Array(
+                    ArrayBuilder::new()
+                        .items(RefOr::T(Schema::Object(str_field().build())))
+                        .build(),
+                ),
             )
-            .property(
-                "primary_url",
-                str_field().description(Some("Optional URL.".to_string())),
-            )
-            .property("locales", Schema::Array(
-                ArrayBuilder::new()
-                    .items(RefOr::T(Schema::Object(str_field().build())))
-                    .build(),
-            ))
             .property("default_locale", str_field())
             .property("settings", opaque_field("Free-form site settings"))
             .property("created_at", rfc3339_field())
@@ -648,11 +609,14 @@ fn content_type_schema() -> Schema {
             .property("slug", str_field())
             .property("name", str_field())
             .property("description", str_field())
-            .property("fields", Schema::Array(
-                ArrayBuilder::new()
-                    .items(RefOr::Ref(Ref::from_schema_name("FieldDef")))
-                    .build(),
-            ))
+            .property(
+                "fields",
+                Schema::Array(
+                    ArrayBuilder::new()
+                        .items(RefOr::Ref(Ref::from_schema_name("FieldDef")))
+                        .build(),
+                ),
+            )
             .property("singleton", bool_field())
             .property("title_field", str_field())
             .property("slug_field", str_field())
@@ -704,7 +668,8 @@ fn content_patch_schema() -> Schema {
         ObjectBuilder::new()
             .schema_type(Type::Object)
             .description(Some(
-                "Partial update — every field is optional and applies only when present.".to_string(),
+                "Partial update — every field is optional and applies only when present."
+                    .to_string(),
             ))
             .property("slug", str_field())
             .property("status", str_field())
@@ -755,10 +720,7 @@ fn page_schema() -> Schema {
         ObjectBuilder::new()
             .schema_type(Type::Object)
             .description(Some("Paginated list envelope.".to_string()))
-            .property(
-                "items",
-                opaque_field("Backend-typed list elements (varies per endpoint)."),
-            )
+            .property("items", opaque_field("Backend-typed list elements (varies per endpoint)."))
             .property("total", int_field())
             .property("page", int_field())
             .property("per_page", int_field())
@@ -778,11 +740,14 @@ fn user_schema() -> Schema {
             .property("email", str_field())
             .property("handle", str_field())
             .property("display_name", str_field())
-            .property("roles", Schema::Array(
-                ArrayBuilder::new()
-                    .items(RefOr::T(Schema::Object(ulid_field().build())))
-                    .build(),
-            ))
+            .property(
+                "roles",
+                Schema::Array(
+                    ArrayBuilder::new()
+                        .items(RefOr::T(Schema::Object(ulid_field().build())))
+                        .build(),
+                ),
+            )
             .property("active", bool_field())
             .property("created_at", rfc3339_field())
             .property("last_login", rfc3339_field())
@@ -852,7 +817,8 @@ fn type_update_response_schema() -> Schema {
             .property("type", RefOr::Ref(Ref::from_schema_name("ContentType")))
             .property(
                 "rows_migrated",
-                int_field().description(Some("Number of rows the schema migrator rewrote.".to_string())),
+                int_field()
+                    .description(Some("Number of rows the schema migrator rewrote.".to_string())),
             )
             .property("changes", Schema::from(opaque_field("FieldChange[]")))
             .required("type")
@@ -869,9 +835,7 @@ fn _unused_array(name: &str) -> Schema {
 
 fn plugin_info_schema() -> Schema {
     let str_array: RefOr<Schema> = RefOr::T(Schema::Array(
-        ArrayBuilder::new()
-            .items(RefOr::T(Schema::Object(str_field().build())))
-            .build(),
+        ArrayBuilder::new().items(RefOr::T(Schema::Object(str_field().build()))).build(),
     ));
     Schema::Object(
         ObjectBuilder::new()
@@ -882,10 +846,7 @@ fn plugin_info_schema() -> Schema {
             .property("declared", str_array.clone())
             .property("granted", str_array.clone())
             .property("hooks", str_array)
-            .property(
-                "enabled",
-                ObjectBuilder::new().schema_type(Type::Boolean),
-            )
+            .property("enabled", ObjectBuilder::new().schema_type(Type::Boolean))
             .required("name")
             .required("version")
             .required("declared")
@@ -898,9 +859,7 @@ fn plugin_info_schema() -> Schema {
 
 fn plugin_grant_body_schema() -> Schema {
     let str_array: RefOr<Schema> = RefOr::T(Schema::Array(
-        ArrayBuilder::new()
-            .items(RefOr::T(Schema::Object(str_field().build())))
-            .build(),
+        ArrayBuilder::new().items(RefOr::T(Schema::Object(str_field().build()))).build(),
     ));
     Schema::Object(
         ObjectBuilder::new()
@@ -915,10 +874,7 @@ fn plugin_enabled_body_schema() -> Schema {
     Schema::Object(
         ObjectBuilder::new()
             .schema_type(Type::Object)
-            .property(
-                "enabled",
-                ObjectBuilder::new().schema_type(Type::Boolean),
-            )
+            .property("enabled", ObjectBuilder::new().schema_type(Type::Boolean))
             .required("enabled")
             .build(),
     )

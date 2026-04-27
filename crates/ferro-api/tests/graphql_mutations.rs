@@ -1,15 +1,16 @@
 //! GraphQL mutation integration tests over the fs-json backend.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{
-    ContentType, FieldDef, FieldId, FieldKind, Locale, Permission, Role, RoleId, Scope,
-    Site, SiteSettings, User, UserId,
+    ContentType, FieldDef, FieldId, FieldKind, Locale, Permission, Role, RoleId, Scope, Site,
+    SiteSettings, User, UserId,
 };
 use ferro_media::MediaConfig;
 use ferro_storage::StorageConfig;
@@ -107,21 +108,13 @@ async fn fixture() -> Fixture {
     };
     // `User.password_hash` is `#[serde(skip_serializing)]`; write JSON directly
     // so the fs-json backend preserves the hash across reload.
-    let user_path = tmp
-        .path()
-        .join("data/users")
-        .join(format!("{}.json", user.id));
+    let user_path = tmp.path().join("data/users").join(format!("{}.json", user.id));
     let mut user_value = serde_json::to_value(&user).unwrap();
     user_value
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(
-        &user_path,
-        serde_json::to_vec_pretty(&user_value).unwrap(),
-    )
-    .await
-    .unwrap();
+    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap()).await.unwrap();
 
     let sessions = Arc::new(MemorySessionStore::new());
     let auth = Arc::new(AuthService::new(repo.clone(), sessions));
@@ -132,8 +125,8 @@ async fn fixture() -> Fixture {
 }
 
 async fn gql(state: Arc<AppState>, query: &str, bearer: Option<&str>) -> Value {
-    let mut req_builder = Request::post("/graphql")
-        .header(header::CONTENT_TYPE, "application/json");
+    let mut req_builder =
+        Request::post("/graphql").header(header::CONTENT_TYPE, "application/json");
     if let Some(t) = bearer {
         req_builder = req_builder.header(header::AUTHORIZATION, format!("Bearer {t}"));
     }
@@ -183,9 +176,7 @@ async fn create_update_publish_delete_via_graphql() {
     // Login
     let login = gql(
         fx.state.clone(),
-        &format!(
-            "mutation {{ login(email: \"{EMAIL}\", password: \"{PASSWORD}\") {{ token }} }}"
-        ),
+        &format!("mutation {{ login(email: \"{EMAIL}\", password: \"{PASSWORD}\") {{ token }} }}"),
         None,
     )
     .await;
@@ -200,10 +191,7 @@ async fn create_update_publish_delete_via_graphql() {
 
     // Use inline data literal: GraphQL input type is `JSON` (serde_json::Value)
     // represented as JSON in query variables. We can pass it as inline object.
-    let data = BTreeMap::from([(
-        "title".to_string(),
-        serde_json::json!({"String": "Hello"}),
-    )]);
+    let data = BTreeMap::from([("title".to_string(), serde_json::json!({"String": "Hello"}))]);
     let _ = data; // shape differs from FieldValue; use serialized FieldValue instead.
 
     let data_literal = serde_json::to_string(&serde_json::json!({

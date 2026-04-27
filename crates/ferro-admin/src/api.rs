@@ -9,14 +9,13 @@
 
 #![cfg(feature = "hydrate")]
 
-use gloo_net::http::{Method, Request, RequestBuilder};
-use wasm_bindgen::JsCast;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use serde_json::Value;
 use std::cell::RefCell;
+
+use gloo_net::http::{Method, Request, RequestBuilder};
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::Value;
 use thiserror::Error;
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 
 const TOKEN_KEY: &str = "ferro.admin.token";
 const REFRESH_KEY: &str = "ferro.admin.refresh";
@@ -32,11 +31,7 @@ pub enum ApiError {
     #[error("network: {0}")]
     Network(String),
     #[error("http {status}: {message}")]
-    Http {
-        status: u16,
-        message: String,
-        body: Option<Value>,
-    },
+    Http { status: u16, message: String, body: Option<Value> },
 }
 
 impl ApiError {
@@ -166,9 +161,7 @@ async fn send_once(
     } else {
         req.build().map_err(|e| ApiError::Network(format!("build: {e:?}")))?
     };
-    req.send()
-        .await
-        .map_err(|e| ApiError::Network(format!("{e:?}")))
+    req.send().await.map_err(|e| ApiError::Network(format!("{e:?}")))
 }
 
 /// Send a JSON-serialized request, automatically retrying once after a
@@ -188,11 +181,8 @@ pub async fn request<T: DeserializeOwned>(
     }
     let status = res.status();
     let text = res.text().await.unwrap_or_default();
-    let parsed: Option<Value> = if text.is_empty() {
-        None
-    } else {
-        serde_json::from_str(&text).ok()
-    };
+    let parsed: Option<Value> =
+        if text.is_empty() { None } else { serde_json::from_str(&text).ok() };
     if !res.ok() {
         let message = parsed
             .as_ref()
@@ -242,12 +232,9 @@ pub async fn delete<T: DeserializeOwned>(path: &str) -> Result<T, ApiError> {
 /// Multipart upload helper for the `/api/v1/media` endpoint. Builds a
 /// FormData payload and posts it via `web_sys::Fetch` because `gloo-net`
 /// doesn't expose multipart bodies directly.
-pub async fn upload_media(
-    file: web_sys::File,
-    alt: Option<&str>,
-) -> Result<Value, ApiError> {
-    let form = web_sys::FormData::new()
-        .map_err(|e| ApiError::Network(format!("formdata: {e:?}")))?;
+pub async fn upload_media(file: web_sys::File, alt: Option<&str>) -> Result<Value, ApiError> {
+    let form =
+        web_sys::FormData::new().map_err(|e| ApiError::Network(format!("formdata: {e:?}")))?;
     form.append_with_blob("file", &file)
         .map_err(|e| ApiError::Network(format!("append file: {e:?}")))?;
     if let Some(a) = alt {
@@ -272,12 +259,9 @@ pub async fn upload_media(
     let response = wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .map_err(|e| ApiError::Network(format!("fetch: {e:?}")))?;
-    let response: web_sys::Response = response
-        .dyn_into()
-        .map_err(|_| ApiError::Network("not a Response".into()))?;
-    let text_promise = response
-        .text()
-        .map_err(|e| ApiError::Network(format!("text: {e:?}")))?;
+    let response: web_sys::Response =
+        response.dyn_into().map_err(|_| ApiError::Network("not a Response".into()))?;
+    let text_promise = response.text().map_err(|e| ApiError::Network(format!("text: {e:?}")))?;
     let text_js = wasm_bindgen_futures::JsFuture::from(text_promise)
         .await
         .map_err(|e| ApiError::Network(format!("text resolve: {e:?}")))?;

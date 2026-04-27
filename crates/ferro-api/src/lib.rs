@@ -16,15 +16,11 @@ pub mod ui;
 
 use std::sync::Arc;
 
-use axum::middleware;
-use axum::Router;
-use tower_http::compression::CompressionLayer;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
-
+use axum::{middleware, Router};
 pub use error::{ApiError, ApiResult};
 pub use rate_limit::{RateLimitConfig, RateLimiter};
 pub use state::{AppState, AuthOptions};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 
 pub fn router(state: Arc<AppState>) -> Router {
     let cors = CorsLayer::permissive();

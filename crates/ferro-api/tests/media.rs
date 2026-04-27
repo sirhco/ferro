@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{Locale, Permission, Role, RoleId, Site, SiteSettings, User, UserId};
@@ -130,10 +132,7 @@ async fn upload_list_get_raw_delete_round_trip() {
     let resp = app
         .oneshot(
             Request::post("/api/v1/media")
-                .header(
-                    header::CONTENT_TYPE,
-                    format!("multipart/form-data; boundary={boundary}"),
-                )
+                .header(header::CONTENT_TYPE, format!("multipart/form-data; boundary={boundary}"))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(body))
                 .unwrap(),
@@ -177,10 +176,7 @@ async fn upload_list_get_raw_delete_round_trip() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(
-        resp.headers().get(header::CONTENT_TYPE).unwrap().to_str().unwrap(),
-        "image/png"
-    );
+    assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap().to_str().unwrap(), "image/png");
     let raw = to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
     assert_eq!(raw.as_ref(), png);
 

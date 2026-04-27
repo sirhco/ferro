@@ -150,12 +150,9 @@ async fn export_then_import_round_trip() {
 
     // Export
     let bundle_path = src_tmp.path().join("bundle.json");
-    export::run(
-        export::Args { out: bundle_path.clone(), include_media: false },
-        src_cfg.clone(),
-    )
-    .await
-    .unwrap();
+    export::run(export::Args { out: bundle_path.clone(), include_media: false }, src_cfg.clone())
+        .await
+        .unwrap();
     assert!(bundle_path.exists());
 
     // Import into destination
@@ -202,12 +199,9 @@ async fn export_then_import_round_trip() {
 async fn import_replace_mode_wipes_existing() {
     let tmp = tempfile::tempdir().unwrap();
     let cfg_path = tmp.path().join("ferro.toml");
-    tokio::fs::write(
-        &cfg_path,
-        ferro_toml(&tmp.path().join("data"), &tmp.path().join("media")),
-    )
-    .await
-    .unwrap();
+    tokio::fs::write(&cfg_path, ferro_toml(&tmp.path().join("data"), &tmp.path().join("media")))
+        .await
+        .unwrap();
 
     let cfg = ferro_cli::config::FerroConfig::load(&cfg_path).await.unwrap();
     let repo = ferro_storage::connect(&cfg.storage).await.unwrap();
@@ -244,13 +238,9 @@ async fn import_replace_mode_wipes_existing() {
         .await
         .unwrap();
 
-    import::run(
-        import::Args { bundle: bundle_path, mode: import::Mode::Replace },
-        cfg_path,
-    )
-    .await
-    .unwrap();
+    import::run(import::Args { bundle: bundle_path, mode: import::Mode::Replace }, cfg_path)
+        .await
+        .unwrap();
 
     assert_eq!(repo.sites().list().await.unwrap().len(), 0);
 }
-

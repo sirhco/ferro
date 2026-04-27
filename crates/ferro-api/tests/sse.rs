@@ -5,9 +5,7 @@
 //! payload arrives. We can't use `oneshot` here because SSE needs an
 //! actual long-lived TCP connection.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
@@ -105,9 +103,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<AppState>, ContentType) {
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap())
-        .await
-        .unwrap();
+    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap()).await.unwrap();
 
     let sessions = Arc::new(MemorySessionStore::new());
     let auth = Arc::new(AuthService::new(repo.clone(), sessions));
@@ -204,10 +200,7 @@ async fn sse_streams_content_created_event() {
     assert!(got_event, "did not observe content.created in SSE stream; got: {buf}");
 
     // Parse the data line and verify the slug round-tripped.
-    let data_line = buf
-        .lines()
-        .find(|l| l.starts_with("data:"))
-        .expect("data line present");
+    let data_line = buf.lines().find(|l| l.starts_with("data:")).expect("data line present");
     let json: Value = serde_json::from_str(data_line.trim_start_matches("data: ")).unwrap();
     assert_eq!(json["kind"], "content_created");
     assert_eq!(json["content"]["slug"], "alpha");
@@ -227,11 +220,7 @@ async fn sse_rejects_unauthenticated_request() {
         axum::serve(listener, app).await.unwrap();
     });
 
-    let resp = reqwest::Client::new()
-        .get(format!("{base}/api/v1/events"))
-        .send()
-        .await
-        .unwrap();
+    let resp = reqwest::Client::new().get(format!("{base}/api/v1/events")).send().await.unwrap();
     assert_eq!(resp.status(), 401);
 
     server.abort();

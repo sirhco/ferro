@@ -1,6 +1,8 @@
-use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::Result;
 use axum::Router;
@@ -54,7 +56,9 @@ pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
                 hooks.register(Arc::new(h)).await;
                 tracing::info!(target: "ferro::webhook", url = %webhook_cfg.url, "registered");
             }
-            Err(e) => tracing::warn!(target: "ferro::webhook", url = %webhook_cfg.url, error = %e, "failed to register"),
+            Err(e) => {
+                tracing::warn!(target: "ferro::webhook", url = %webhook_cfg.url, error = %e, "failed to register")
+            }
         }
     }
 
@@ -68,19 +72,13 @@ pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
         services,
     )?;
     let grants: Vec<_> = cfg.plugins.grants.iter().map(|g| g.to_grant()).collect();
-    let plugin_registry = Arc::new(PluginRegistry::new(
-        runtime,
-        cfg.plugins.dir.clone(),
-        hooks.clone(),
-        &grants,
-    ));
+    let plugin_registry =
+        Arc::new(PluginRegistry::new(runtime, cfg.plugins.dir.clone(), hooks.clone(), &grants));
     if let Err(e) = plugin_registry.scan().await {
         tracing::warn!(target: "ferro::plugin", error = %e, "plugin scan failed");
     }
 
-    let options = AuthOptions {
-        allow_public_signup: cfg.auth.allow_public_signup,
-    };
+    let options = AuthOptions { allow_public_signup: cfg.auth.allow_public_signup };
     let state = Arc::new(
         AppState::with_hooks(repo, media, auth, jwt, hooks)
             .with_options(options)
@@ -192,9 +190,11 @@ async fn ensure_default_site(repo: &dyn ferro_storage::Repository) -> Result<()>
 /// file is missing — used for one-off static routes (e.g. favicon) where
 /// `ServeDir` would be overkill.
 async fn serve_file(path: PathBuf, content_type: &'static str) -> axum::response::Response {
-    use axum::body::Body;
-    use axum::http::{header, StatusCode};
-    use axum::response::Response;
+    use axum::{
+        body::Body,
+        http::{header, StatusCode},
+        response::Response,
+    };
 
     match tokio::fs::read(&path).await {
         Ok(bytes) => Response::builder()
@@ -208,10 +208,7 @@ async fn serve_file(path: PathBuf, content_type: &'static str) -> axum::response
                     .body(Body::empty())
                     .unwrap()
             }),
-        Err(_) => Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap(),
+        Err(_) => Response::builder().status(StatusCode::NOT_FOUND).body(Body::empty()).unwrap(),
     }
 }
 
@@ -226,10 +223,9 @@ async fn ensure_bg_wasm_alias(pkg_dir: &Path, output_name: &str) {
         return;
     }
     // Refresh stale aliases when the canonical file is newer.
-    if let (Ok(c_meta), Ok(a_meta)) = (
-        tokio::fs::metadata(&canonical).await,
-        tokio::fs::metadata(&alias).await,
-    ) {
+    if let (Ok(c_meta), Ok(a_meta)) =
+        (tokio::fs::metadata(&canonical).await, tokio::fs::metadata(&alias).await)
+    {
         if let (Ok(c_t), Ok(a_t)) = (c_meta.modified(), a_meta.modified()) {
             if a_t >= c_t {
                 return;
@@ -252,10 +248,7 @@ fn build_admin_router(bind: &str, site_dir: &Path) -> Router {
         .output_name("ferro_admin")
         .site_root(site_dir.to_string_lossy().to_string())
         .site_pkg_dir("pkg")
-        .site_addr(
-            bind.parse::<SocketAddr>()
-                .unwrap_or_else(|_| "127.0.0.1:3000".parse().unwrap()),
-        )
+        .site_addr(bind.parse::<SocketAddr>().unwrap_or_else(|_| "127.0.0.1:3000".parse().unwrap()))
         .reload_port(3002)
         .env(leptos::config::Env::PROD)
         .build();
@@ -263,8 +256,6 @@ fn build_admin_router(bind: &str, site_dir: &Path) -> Router {
     let routes = generate_route_list(ferro_admin::App);
     let opts_for_shell = leptos_options.clone();
     Router::new()
-        .leptos_routes(&leptos_options, routes, move || {
-            ferro_admin::shell(opts_for_shell.clone())
-        })
+        .leptos_routes(&leptos_options, routes, move || ferro_admin::shell(opts_for_shell.clone()))
         .with_state(leptos_options)
 }

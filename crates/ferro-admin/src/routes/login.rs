@@ -1,5 +1,4 @@
-use leptos::ev::SubmitEvent;
-use leptos::prelude::*;
+use leptos::{ev::SubmitEvent, prelude::*};
 
 const MFA_TOKEN_KEY: &str = "ferro.admin.mfa_token";
 
@@ -13,14 +12,8 @@ pub fn LoginPage() -> impl IntoView {
         ev.prevent_default();
         #[cfg(feature = "hydrate")]
         {
-            let email = email_ref
-                .get()
-                .map(|el| el.value())
-                .unwrap_or_default();
-            let password = password_ref
-                .get()
-                .map(|el| el.value())
-                .unwrap_or_default();
+            let email = email_ref.get().map(|el| el.value()).unwrap_or_default();
+            let password = password_ref.get().map(|el| el.value()).unwrap_or_default();
             let err_node = error_ref.get();
             if let Some(p) = err_node.as_ref() {
                 p.set_text_content(Some(""));
@@ -31,8 +24,8 @@ pub fn LoginPage() -> impl IntoView {
                     Ok(data) => {
                         if data.get("mfa_required").and_then(|v| v.as_bool()).unwrap_or(false) {
                             if let Some(tok) = data.get("mfa_token").and_then(|v| v.as_str()) {
-                                if let Some(s) = web_sys::window()
-                                    .and_then(|w| w.local_storage().ok().flatten())
+                                if let Some(s) =
+                                    web_sys::window().and_then(|w| w.local_storage().ok().flatten())
                                 {
                                     let _ = s.set_item(MFA_TOKEN_KEY, tok);
                                 }
@@ -99,13 +92,15 @@ pub fn MfaPage() -> impl IntoView {
                     .and_then(|s| s.get_item(MFA_TOKEN_KEY).ok().flatten())
                     .unwrap_or_default();
                 let body = serde_json::json!({ "mfa_token": mfa_token, "code": code });
-                match crate::api::post::<serde_json::Value, _>("/api/v1/auth/totp/login", &body).await {
+                match crate::api::post::<serde_json::Value, _>("/api/v1/auth/totp/login", &body)
+                    .await
+                {
                     Ok(data) => {
                         let access = data.get("token").and_then(|v| v.as_str());
                         let refresh = data.get("refresh_token").and_then(|v| v.as_str());
                         crate::api::set_tokens(access, refresh);
-                        if let Some(s) = web_sys::window()
-                            .and_then(|w| w.local_storage().ok().flatten())
+                        if let Some(s) =
+                            web_sys::window().and_then(|w| w.local_storage().ok().flatten())
                         {
                             let _ = s.remove_item(MFA_TOKEN_KEY);
                         }

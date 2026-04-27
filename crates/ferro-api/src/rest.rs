@@ -1,27 +1,28 @@
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
-use axum::routing::{get, post};
-use axum::{Json, Router};
-use axum::body::Body;
-use axum::extract::Multipart;
-use axum::http::HeaderMap;
-use axum::response::Response;
-use std::net::IpAddr;
+use axum::{
+    body::Body,
+    extract::{Multipart, Path, Query, State},
+    http::{HeaderMap, StatusCode},
+    response::Response,
+    routing::{get, post},
+    Json, Router,
+};
 use ferro_auth::{authorize, hash_password, verify_password, AuthContext};
 use ferro_core::{
     Content, ContentPatch, ContentQuery, ContentType, ContentTypeId, ContentVersion,
-    ContentVersionId, Media, MediaId, MediaKind, NewContent, Page, Permission, Role, RoleId,
-    Scope, Site, User, UserId,
+    ContentVersionId, Media, MediaId, MediaKind, NewContent, Page, Permission, Role, RoleId, Scope,
+    Site, User, UserId,
 };
 use ferro_plugin::{HookEvent, PluginInfo};
 use ferro_storage::schema as schema_migrator;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::AuthUser;
-use crate::error::{ApiError, ApiResult};
-use crate::state::AppState;
+use crate::{
+    auth::AuthUser,
+    error::{ApiError, ApiResult},
+    state::AppState,
+};
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
@@ -39,46 +40,25 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/v1/auth/totp/disable", post(totp_disable))
         .route("/api/v1/auth/totp/login", post(totp_login))
         .route("/api/v1/sites", get(list_sites))
-        .route(
-            "/api/v1/content/{type_slug}",
-            get(list_content).post(create_content),
-        )
+        .route("/api/v1/content/{type_slug}", get(list_content).post(create_content))
         .route(
             "/api/v1/content/{type_slug}/{slug}",
             get(get_content).patch(update_content).delete(delete_content),
         )
-        .route(
-            "/api/v1/content/{type_slug}/{slug}/publish",
-            post(publish_content),
-        )
-        .route(
-            "/api/v1/content/{type_slug}/{slug}/versions",
-            get(list_versions),
-        )
+        .route("/api/v1/content/{type_slug}/{slug}/publish", post(publish_content))
+        .route("/api/v1/content/{type_slug}/{slug}/versions", get(list_versions))
         .route(
             "/api/v1/content/{type_slug}/{slug}/versions/{version_id}/restore",
             post(restore_version),
         )
         .route("/api/v1/types", get(list_types).post(create_type))
-        .route(
-            "/api/v1/types/{slug}",
-            get(get_type).patch(update_type).delete(delete_type),
-        )
+        .route("/api/v1/types/{slug}", get(get_type).patch(update_type).delete(delete_type))
         .route("/api/v1/users", get(list_users).post(create_user))
-        .route(
-            "/api/v1/users/{id}",
-            get(get_user).patch(update_user).delete(delete_user),
-        )
+        .route("/api/v1/users/{id}", get(get_user).patch(update_user).delete(delete_user))
         .route("/api/v1/roles", get(list_roles).post(create_role))
-        .route(
-            "/api/v1/roles/{id}",
-            get(get_role).patch(update_role).delete(delete_role),
-        )
+        .route("/api/v1/roles/{id}", get(get_role).patch(update_role).delete(delete_role))
         .route("/api/v1/media", get(list_media).post(upload_media))
-        .route(
-            "/api/v1/media/{id}",
-            get(get_media).delete(delete_media),
-        )
+        .route("/api/v1/media/{id}", get(get_media).delete(delete_media))
         .route("/api/v1/media/{id}/raw", get(get_media_raw))
         .route("/api/v1/plugins", get(list_plugins))
         .route("/api/v1/plugins/{name}", get(inspect_plugin))
@@ -127,10 +107,7 @@ async fn inspect_plugin(
 ) -> ApiResult<Json<PluginInfo>> {
     require_manage_plugins(&auth.ctx)?;
     let reg = require_plugins(&state)?;
-    let info = reg
-        .describe(&name)
-        .await
-        .map_err(|_| ApiError::NotFound)?;
+    let info = reg.describe(&name).await.map_err(|_| ApiError::NotFound)?;
     Ok(Json(info))
 }
 
@@ -145,10 +122,7 @@ async fn grant_plugin(
     reg.set_grants(&name, body.capabilities)
         .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let info = reg
-        .describe(&name)
-        .await
-        .map_err(|_| ApiError::NotFound)?;
+    let info = reg.describe(&name).await.map_err(|_| ApiError::NotFound)?;
     Ok(Json(info))
 }
 
@@ -160,16 +134,12 @@ async fn reload_plugin(
     require_manage_plugins(&auth.ctx)?;
     let reg = require_plugins(&state)?;
     if name == "*" || name == "_all" {
-        reg.reload()
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        reg.reload().await.map_err(|e| ApiError::Internal(e.to_string()))?;
     } else {
         // No granular reload-one; round-trip through set_grants with the
         // current granted set (we don't have a public API to just rescan one).
         // Fall back to a full reload — cheap and predictable.
-        reg.reload()
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        reg.reload().await.map_err(|e| ApiError::Internal(e.to_string()))?;
     }
     let _ = name;
     Ok(StatusCode::NO_CONTENT)
@@ -183,13 +153,8 @@ async fn set_plugin_enabled(
 ) -> ApiResult<Json<PluginInfo>> {
     require_manage_plugins(&auth.ctx)?;
     let reg = require_plugins(&state)?;
-    reg.set_enabled(&name, body.enabled)
-        .await
-        .map_err(|_| ApiError::NotFound)?;
-    let info = reg
-        .describe(&name)
-        .await
-        .map_err(|_| ApiError::NotFound)?;
+    reg.set_enabled(&name, body.enabled).await.map_err(|_| ApiError::NotFound)?;
+    let info = reg.describe(&name).await.map_err(|_| ApiError::NotFound)?;
     Ok(Json(info))
 }
 
@@ -253,9 +218,7 @@ async fn create_content(
 ) -> ApiResult<Json<Content>> {
     let (site, ty) = resolve_type(&state, &type_slug).await?;
     if body.type_id != ty.id {
-        return Err(ApiError::BadRequest(
-            "type_id does not match URL type slug".into(),
-        ));
+        return Err(ApiError::BadRequest("type_id does not match URL type slug".into()));
     }
     require_write(&auth.ctx, ty.id)?;
     body.validate(&ty)?;
@@ -393,10 +356,7 @@ async fn login(
     let (user, _session) = state.auth.login(&body.email, &body.password, None, None).await?;
     if user.totp_secret.is_some() {
         let mfa_token = mint_mfa_challenge(&state, &user).await?;
-        return Ok(Json(AuthResponse::Mfa(MfaChallenge {
-            mfa_required: true,
-            mfa_token,
-        })));
+        return Ok(Json(AuthResponse::Mfa(MfaChallenge { mfa_required: true, mfa_token })));
     }
     let resp = mint_login(&state, user).await?;
     Ok(Json(AuthResponse::Tokens(resp)))
@@ -440,11 +400,7 @@ async fn refresh(
         return Err(ApiError::Forbidden("account disabled".into()));
     }
     // One-time use — rotate.
-    state
-        .auth
-        .logout(&session.token)
-        .await
-        .map_err(ApiError::Auth)?;
+    state.auth.logout(&session.token).await.map_err(ApiError::Auth)?;
     let resp = mint_login(&state, user).await?;
     Ok(Json(resp))
 }
@@ -453,10 +409,7 @@ async fn refresh(
 /// the [`SessionStore`]; the access JWT is stateless.
 async fn mint_login(state: &AppState, user: User) -> ApiResult<LoginResponse> {
     let role_names: Vec<String> = user.roles.iter().map(|r| r.to_string()).collect();
-    let token = state
-        .jwt
-        .mint(user.id, role_names, JWT_TTL_SECS)
-        .map_err(ApiError::Auth)?;
+    let token = state.jwt.mint(user.id, role_names, JWT_TTL_SECS).map_err(ApiError::Auth)?;
 
     let now = time::OffsetDateTime::now_utc();
     let refresh = ferro_auth::Session {
@@ -467,17 +420,8 @@ async fn mint_login(state: &AppState, user: User) -> ApiResult<LoginResponse> {
         ip: None,
         user_agent: None,
     };
-    state
-        .auth
-        .sessions
-        .put(refresh.clone())
-        .await
-        .map_err(ApiError::Auth)?;
-    Ok(LoginResponse {
-        token,
-        refresh_token: refresh.token,
-        user: user.redacted(),
-    })
+    state.auth.sessions.put(refresh.clone()).await.map_err(ApiError::Auth)?;
+    Ok(LoginResponse { token, refresh_token: refresh.token, user: user.redacted() })
 }
 
 // --- TOTP / 2FA ------------------------------------------------------------
@@ -514,9 +458,7 @@ struct TotpLoginBody {
 /// generating a secret they can't actually scan.
 async fn totp_setup(auth: AuthUser) -> ApiResult<Json<TotpSetupResponse>> {
     if auth.user.totp_secret.is_some() {
-        return Err(ApiError::BadRequest(
-            "TOTP already enabled; disable first to rotate".into(),
-        ));
+        return Err(ApiError::BadRequest("TOTP already enabled; disable first to rotate".into()));
     }
     let secret = ferro_auth::totp::generate_secret();
     let uri = ferro_auth::totp::otpauth_uri(&secret, &auth.user.email, "Ferro");
@@ -531,12 +473,7 @@ async fn totp_enable(
     if !ferro_auth::totp::verify(&body.secret, &body.code, time::OffsetDateTime::now_utc()) {
         return Err(ApiError::BadRequest("invalid TOTP code".into()));
     }
-    let mut user = state
-        .repo
-        .users()
-        .get(auth.user.id)
-        .await?
-        .ok_or(ApiError::Unauthorized)?;
+    let mut user = state.repo.users().get(auth.user.id).await?.ok_or(ApiError::Unauthorized)?;
     user.totp_secret = Some(body.secret);
     state.repo.users().upsert(user).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -555,12 +492,7 @@ async fn totp_disable(
     if !ferro_auth::totp::verify(secret, &body.code, time::OffsetDateTime::now_utc()) {
         return Err(ApiError::BadRequest("invalid TOTP code".into()));
     }
-    let mut user = state
-        .repo
-        .users()
-        .get(auth.user.id)
-        .await?
-        .ok_or(ApiError::Unauthorized)?;
+    let mut user = state.repo.users().get(auth.user.id).await?.ok_or(ApiError::Unauthorized)?;
     user.totp_secret = None;
     state.repo.users().upsert(user).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -578,18 +510,12 @@ async fn totp_login(
     if !body.mfa_token.starts_with(MFA_PREFIX) {
         return Err(ApiError::Unauthorized);
     }
-    let (session, user) = state
-        .auth
-        .resolve_session(&body.mfa_token)
-        .await
-        .map_err(|_| ApiError::Unauthorized)?;
+    let (session, user) =
+        state.auth.resolve_session(&body.mfa_token).await.map_err(|_| ApiError::Unauthorized)?;
     // One-shot: invalidate the challenge regardless of code outcome to deny
     // brute-force on the same token.
     let _ = state.auth.logout(&session.token).await;
-    let secret = user
-        .totp_secret
-        .as_deref()
-        .ok_or(ApiError::Unauthorized)?;
+    let secret = user.totp_secret.as_deref().ok_or(ApiError::Unauthorized)?;
     if !ferro_auth::totp::verify(secret, &body.code, time::OffsetDateTime::now_utc()) {
         return Err(ApiError::Unauthorized);
     }
@@ -633,10 +559,7 @@ struct MeResponse {
 
 async fn me(auth: AuthUser) -> Json<MeResponse> {
     let totp_enabled = auth.user.totp_secret.is_some();
-    Json(MeResponse {
-        user: auth.user.redacted(),
-        totp_enabled,
-    })
+    Json(MeResponse { user: auth.user.redacted(), totp_enabled })
 }
 
 #[derive(Debug, Deserialize)]
@@ -663,9 +586,7 @@ async fn signup(
         ));
     }
     if body.password.len() < 8 {
-        return Err(ApiError::BadRequest(
-            "password must be at least 8 characters".into(),
-        ));
+        return Err(ApiError::BadRequest("password must be at least 8 characters".into()));
     }
     if state.repo.users().by_email(&body.email).await?.is_some() {
         return Err(ApiError::BadRequest("email already in use".into()));
@@ -704,20 +625,10 @@ async fn change_password(
     Json(body): Json<ChangePasswordBody>,
 ) -> ApiResult<StatusCode> {
     if body.new_password.len() < 8 {
-        return Err(ApiError::BadRequest(
-            "new password must be at least 8 characters".into(),
-        ));
+        return Err(ApiError::BadRequest("new password must be at least 8 characters".into()));
     }
-    let mut user = state
-        .repo
-        .users()
-        .get(auth.user.id)
-        .await?
-        .ok_or(ApiError::Unauthorized)?;
-    let hash = user
-        .password_hash
-        .as_deref()
-        .ok_or(ApiError::Unauthorized)?;
+    let mut user = state.repo.users().get(auth.user.id).await?.ok_or(ApiError::Unauthorized)?;
+    let hash = user.password_hash.as_deref().ok_or(ApiError::Unauthorized)?;
     if !verify_password(&body.current_password, hash).map_err(ApiError::Auth)? {
         return Err(ApiError::Auth(ferro_auth::AuthError::InvalidCredentials));
     }
@@ -730,12 +641,7 @@ async fn change_password(
 async fn resolve_type(state: &AppState, type_slug: &str) -> ApiResult<(Site, ContentType)> {
     let sites = state.repo.sites().list().await?;
     let site = sites.into_iter().next().ok_or(ApiError::NotFound)?;
-    let ty = state
-        .repo
-        .types()
-        .by_slug(site.id, type_slug)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let ty = state.repo.types().by_slug(site.id, type_slug).await?.ok_or(ApiError::NotFound)?;
     Ok((site, ty))
 }
 
@@ -745,12 +651,8 @@ async fn resolve_entry(
     slug: &str,
 ) -> ApiResult<(Site, ContentType, Content)> {
     let (site, ty) = resolve_type(state, type_slug).await?;
-    let content = state
-        .repo
-        .content()
-        .by_slug(site.id, ty.id, slug)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let content =
+        state.repo.content().by_slug(site.id, ty.id, slug).await?.ok_or(ApiError::NotFound)?;
     Ok((site, ty, content))
 }
 
@@ -782,16 +684,9 @@ async fn restore_version(
     let (_site, ty, current) = resolve_entry(&state, &type_slug, &slug).await?;
     require_write(&auth.ctx, ty.id)?;
     let version_id: ContentVersionId = parse_typed_id(&version_id)?;
-    let version = state
-        .repo
-        .versions()
-        .get(version_id)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let version = state.repo.versions().get(version_id).await?.ok_or(ApiError::NotFound)?;
     if version.content_id != current.id {
-        return Err(ApiError::BadRequest(
-            "version belongs to a different content row".into(),
-        ));
+        return Err(ApiError::BadRequest("version belongs to a different content row".into()));
     }
     // Snapshot the live row before overwriting it so the restore itself is
     // reversible.
@@ -931,8 +826,7 @@ fn parse_typed_id<T: std::str::FromStr>(s: &str) -> ApiResult<T>
 where
     T::Err: std::fmt::Display,
 {
-    s.parse::<T>()
-        .map_err(|e| ApiError::BadRequest(format!("invalid id `{s}`: {e}")))
+    s.parse::<T>().map_err(|e| ApiError::BadRequest(format!("invalid id `{s}`: {e}")))
 }
 
 // --- User-management routes ---
@@ -980,14 +874,7 @@ async fn list_users(
     auth: AuthUser,
 ) -> ApiResult<Json<Vec<User>>> {
     require_manage_users(&auth.ctx)?;
-    let users = state
-        .repo
-        .users()
-        .list()
-        .await?
-        .into_iter()
-        .map(User::redacted)
-        .collect();
+    let users = state.repo.users().list().await?.into_iter().map(User::redacted).collect();
     Ok(Json(users))
 }
 
@@ -1203,14 +1090,10 @@ async fn get_media_raw(
 ) -> ApiResult<Response<Body>> {
     let id: MediaId = parse_typed_id(&id)?;
     let meta = state.repo.media().get(id).await?.ok_or(ApiError::NotFound)?;
-    let stream = state
-        .media
-        .get(&meta.key)
-        .await
-        .map_err(|e| match e {
-            ferro_media::MediaError::NotFound => ApiError::NotFound,
-            other => ApiError::Media(other),
-        })?;
+    let stream = state.media.get(&meta.key).await.map_err(|e| match e {
+        ferro_media::MediaError::NotFound => ApiError::NotFound,
+        other => ApiError::Media(other),
+    })?;
     let body = Body::from_stream(stream);
     let resp = Response::builder()
         .status(StatusCode::OK)
@@ -1242,19 +1125,15 @@ async fn upload_media(
     let mut bytes: Option<Vec<u8>> = None;
     let mut alt: Option<String> = None;
 
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| ApiError::BadRequest(format!("multipart: {e}")))?
+    while let Some(field) =
+        multipart.next_field().await.map_err(|e| ApiError::BadRequest(format!("multipart: {e}")))?
     {
         let name = field.name().unwrap_or("").to_string();
         if name == "file" {
             filename = field.file_name().map(|s| s.to_string());
             mime = field.content_type().map(|m| m.to_string());
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| ApiError::BadRequest(format!("file read: {e}")))?;
+            let data =
+                field.bytes().await.map_err(|e| ApiError::BadRequest(format!("file read: {e}")))?;
             if data.len() > MAX_UPLOAD_BYTES {
                 return Err(ApiError::BadRequest(format!(
                     "file exceeds {MAX_UPLOAD_BYTES}-byte limit"
@@ -1262,10 +1141,8 @@ async fn upload_media(
             }
             bytes = Some(data.to_vec());
         } else if name == "alt" {
-            let text: String = field
-                .text()
-                .await
-                .map_err(|e| ApiError::BadRequest(format!("alt text: {e}")))?;
+            let text: String =
+                field.text().await.map_err(|e| ApiError::BadRequest(format!("alt text: {e}")))?;
             alt = Some(text);
         }
     }
@@ -1327,13 +1204,7 @@ async fn delete_media(
 fn sanitize_filename(name: &str) -> String {
     let cleaned: String = name
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
-                c
-            } else {
-                '_'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
         .collect();
     if cleaned.is_empty() || cleaned.chars().all(|c| c == '.' || c == '_') {
         "upload".into()

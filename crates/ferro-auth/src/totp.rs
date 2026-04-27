@@ -30,11 +30,7 @@ pub fn generate_secret() -> String {
 /// URI. Authenticator apps render a QR code from this.
 #[must_use]
 pub fn otpauth_uri(secret: &str, account: &str, issuer: &str) -> String {
-    let label = format!(
-        "{}:{}",
-        url_encode(issuer),
-        url_encode(account),
-    );
+    let label = format!("{}:{}", url_encode(issuer), url_encode(account),);
     format!(
         "otpauth://totp/{label}?secret={secret}&issuer={}&algorithm=SHA1&digits={DIGITS}&period={STEP_SECS}",
         url_encode(issuer)
@@ -61,12 +57,7 @@ pub fn verify(secret_b32: &str, code: &str, at: OffsetDateTime) -> bool {
 /// REST layer uses `1` (matches Google Authenticator's tolerance); test
 /// vectors pin to `0` to assert exact-step behavior.
 #[must_use]
-pub fn verify_with_window(
-    secret_b32: &str,
-    code: &str,
-    at: OffsetDateTime,
-    window: i64,
-) -> bool {
+pub fn verify_with_window(secret_b32: &str, code: &str, at: OffsetDateTime, window: i64) -> bool {
     let Some(key) = base32::decode(Alphabet::Rfc4648 { padding: false }, secret_b32) else {
         return false;
     };
@@ -123,8 +114,7 @@ mod tests {
     #[test]
     fn rfc_6238_reference_vector() {
         let secret_ascii = b"12345678901234567890";
-        let secret_b32 =
-            base32::encode(Alphabet::Rfc4648 { padding: false }, secret_ascii);
+        let secret_b32 = base32::encode(Alphabet::Rfc4648 { padding: false }, secret_ascii);
         let at = OffsetDateTime::from_unix_timestamp(59).unwrap();
         assert_eq!(generate(&secret_b32, at).unwrap(), "287082");
     }

@@ -14,8 +14,10 @@
 //! WASM_TESTS=1 cargo test -p ferro-plugin --test wasm_dispatch
 //! ```
 
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use ferro_plugin::{
     HookEvent, HookRegistry, PluginGrant, PluginRegistry, PluginRuntime, RuntimeConfig, Services,
@@ -54,9 +56,7 @@ async fn wasm_plugin_observes_published_event() {
     let plugins_dir = tmp.path().join("plugins");
     let plugin_dir = plugins_dir.join("hello");
     tokio::fs::create_dir_all(&plugin_dir).await.unwrap();
-    tokio::fs::copy(&plugin_wasm, plugin_dir.join("plugin.wasm"))
-        .await
-        .unwrap();
+    tokio::fs::copy(&plugin_wasm, plugin_dir.join("plugin.wasm")).await.unwrap();
     tokio::fs::write(
         plugin_dir.join("plugin.toml"),
         b"name = \"hello\"\nversion = \"0.1.0\"\nentry = \"plugin.wasm\"\ncapabilities = [\"logs\"]\nhooks = [\"content.published\"]\n",
@@ -67,19 +67,14 @@ async fn wasm_plugin_observes_published_event() {
     let storage_dir = tmp.path().join("data");
     tokio::fs::create_dir_all(&storage_dir).await.unwrap();
     let repo: Arc<dyn ferro_storage::Repository> = Arc::from(
-        ferro_storage::connect(&StorageConfig::FsJson { path: storage_dir })
-            .await
-            .unwrap(),
+        ferro_storage::connect(&StorageConfig::FsJson { path: storage_dir }).await.unwrap(),
     );
     repo.migrate().await.unwrap();
 
     let hooks = HookRegistry::new();
     let services = Arc::new(Services::new(repo.clone(), hooks.clone()));
     let runtime = PluginRuntime::new(RuntimeConfig::default(), services).unwrap();
-    let grants = vec![PluginGrant {
-        name: "hello".into(),
-        capabilities: vec!["logs".into()],
-    }];
+    let grants = vec![PluginGrant { name: "hello".into(), capabilities: vec!["logs".into()] }];
     let registry = PluginRegistry::new(runtime, plugins_dir, hooks.clone(), &grants);
     registry.scan().await.unwrap();
 
@@ -102,10 +97,7 @@ async fn wasm_plugin_observes_published_event() {
         updated_at: now,
         published_at: Some(now),
     };
-    let evt = HookEvent::ContentPublished {
-        content,
-        type_slug: Some("post".into()),
-    };
+    let evt = HookEvent::ContentPublished { content, type_slug: Some("post".into()) };
     hooks.dispatch(evt).await;
 
     let captured = sink.lock().unwrap().clone();

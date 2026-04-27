@@ -103,10 +103,7 @@ mod tests {
 
     #[test]
     fn renders_image_with_media_url() {
-        let doc = vec![Block::Image {
-            media_id: "abc".into(),
-            alt: Some("alt".into()),
-        }];
+        let doc = vec![Block::Image { media_id: "abc".into(), alt: Some("alt".into()) }];
         let html = render_html(&doc, "https://cdn.example.com/media/");
         assert!(html.contains("https://cdn.example.com/media/abc"));
         assert!(html.contains("alt=\"alt\""));
@@ -114,20 +111,14 @@ mod tests {
 
     #[test]
     fn renders_ordered_list() {
-        let doc = vec![Block::List {
-            ordered: true,
-            items: vec!["one".into(), "two".into()],
-        }];
+        let doc = vec![Block::List { ordered: true, items: vec!["one".into(), "two".into()] }];
         let html = render_html(&doc, "/media");
         assert_eq!(html, "<ol><li>one</li><li>two</li></ol>");
     }
 
     #[test]
     fn renders_code_with_lang_class() {
-        let doc = vec![Block::Code {
-            lang: Some("rust".into()),
-            code: "fn main(){}".into(),
-        }];
+        let doc = vec![Block::Code { lang: Some("rust".into()), code: "fn main(){}".into() }];
         let html = render_html(&doc, "/media");
         assert!(html.contains("class=\"language-rust\""));
         assert!(html.contains("fn main(){}"));

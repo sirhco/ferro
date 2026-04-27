@@ -29,9 +29,7 @@ pub fn derive_content_type(input: TokenStream) -> TokenStream {
         Err(e) => return e.write_errors().into(),
     };
     let ty_ident = &attrs.ident;
-    let slug = attrs
-        .slug
-        .unwrap_or_else(|| to_kebab(&ty_ident.to_string()));
+    let slug = attrs.slug.unwrap_or_else(|| to_kebab(&ty_ident.to_string()));
     let name = attrs.name.unwrap_or_else(|| ty_ident.to_string());
     let singleton = attrs.singleton;
 

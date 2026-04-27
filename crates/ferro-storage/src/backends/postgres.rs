@@ -8,12 +8,13 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use ferro_core::*;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::{PgPool, Row};
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 
-use crate::config::StorageConfig;
-use crate::error::{StorageError, StorageResult};
-use crate::repo::*;
+use crate::{
+    config::StorageConfig,
+    error::{StorageError, StorageResult},
+    repo::*,
+};
 
 pub async fn connect(cfg: &StorageConfig) -> StorageResult<Box<dyn Repository>> {
     let StorageConfig::Postgres { url, max_conns } = cfg else {
@@ -178,10 +179,8 @@ fn row_to_content(row: &sqlx::postgres::PgRow) -> StorageResult<Content> {
 fn row_to_user(row: &sqlx::postgres::PgRow) -> StorageResult<User> {
     let id: String = row.try_get("id").map_err(map_sqlx)?;
     let roles_raw: Vec<String> = row.try_get("roles").map_err(map_sqlx)?;
-    let roles = roles_raw
-        .into_iter()
-        .map(|s| parse_id::<RoleId>(&s))
-        .collect::<StorageResult<Vec<_>>>()?;
+    let roles =
+        roles_raw.into_iter().map(|s| parse_id::<RoleId>(&s)).collect::<StorageResult<Vec<_>>>()?;
     Ok(User {
         id: parse_id(&id)?,
         email: row.try_get("email").map_err(map_sqlx)?,
@@ -369,13 +368,12 @@ impl ContentTypeRepo for PgRepo {
     }
 
     async fn list(&self, site: SiteId) -> StorageResult<Vec<ContentType>> {
-        let rows = sqlx::query(
-            "SELECT * FROM content_types WHERE site_id = $1 ORDER BY created_at ASC",
-        )
-        .bind(site.to_string())
-        .fetch_all(&self.pool)
-        .await
-        .map_err(map_sqlx)?;
+        let rows =
+            sqlx::query("SELECT * FROM content_types WHERE site_id = $1 ORDER BY created_at ASC")
+                .bind(site.to_string())
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_sqlx)?;
         rows.iter().map(row_to_type).collect()
     }
 
@@ -474,14 +472,13 @@ impl ContentRepo for PgRepo {
         let resolved_type_id = match (&type_id, &type_slug, &site_id) {
             (Some(t), _, _) => Some(t.clone()),
             (None, Some(slug), Some(sid)) => {
-                let row = sqlx::query(
-                    "SELECT id FROM content_types WHERE site_id = $1 AND slug = $2",
-                )
-                .bind(sid)
-                .bind(slug)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(map_sqlx)?;
+                let row =
+                    sqlx::query("SELECT id FROM content_types WHERE site_id = $1 AND slug = $2")
+                        .bind(sid)
+                        .bind(slug)
+                        .fetch_optional(&self.pool)
+                        .await
+                        .map_err(map_sqlx)?;
                 row.map(|r| r.try_get::<String, _>("id")).transpose().map_err(map_sqlx)?
             }
             (None, Some(slug), None) => {
@@ -521,9 +518,8 @@ impl ContentRepo for PgRepo {
         if search.is_some() {
             // Match against either the slug or the full JSON payload (lowered).
             // Adequate for the v0.x roadmap; tsvector lands with v0.7 search.
-            where_clauses.push(format!(
-                "(LOWER(slug) LIKE ${idx} OR LOWER(data::text) LIKE ${idx})"
-            ));
+            where_clauses
+                .push(format!("(LOWER(slug) LIKE ${idx} OR LOWER(data::text) LIKE ${idx})"));
             idx += 1;
         }
 
@@ -618,9 +614,7 @@ impl ContentRepo for PgRepo {
     }
 
     async fn update(&self, id: ContentId, patch: ContentPatch) -> StorageResult<Content> {
-        let mut current = ContentRepo::get(self, id)
-            .await?
-            .ok_or(StorageError::NotFound)?;
+        let mut current = ContentRepo::get(self, id).await?.ok_or(StorageError::NotFound)?;
         if let Some(slug) = patch.slug {
             current.slug = slug;
         }
@@ -650,9 +644,7 @@ impl ContentRepo for PgRepo {
     }
 
     async fn publish(&self, id: ContentId) -> StorageResult<Content> {
-        let mut current = ContentRepo::get(self, id)
-            .await?
-            .ok_or(StorageError::NotFound)?;
+        let mut current = ContentRepo::get(self, id).await?.ok_or(StorageError::NotFound)?;
         let now = time::OffsetDateTime::now_utc();
         current.status = Status::Published;
         current.published_at = Some(now);

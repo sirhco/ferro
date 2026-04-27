@@ -12,6 +12,7 @@ members = [
     "crates/ferro-admin",
     "crates/ferro-cli",
     "examples/starter-blog",
+    "examples/starter-blog/site-app",
     "examples/starter-blog/site-server",
 ]
 
@@ -32,6 +33,25 @@ site-addr = "127.0.0.1:3000"
 reload-port = 3002
 browserquery = "defaults"
 bin-features = []
+lib-features = ["hydrate"]
+lib-profile-release = "release-wasm"
+
+# Public starter-site (Leptos islands). Uses --split for per-route WASM
+# chunks; brotli compression applied post-build by `ferro build`.
+[[workspace.metadata.leptos]]
+name = "starter-site"
+bin-package = "starter-site-server"
+bin-target = "starter-site"
+bin-exe-name = "starter-site"
+lib-package = "starter-site-app"
+output-name = "starter_site"
+site-root = "target/starter-site"
+site-pkg-dir = "pkg"
+style-file = "examples/starter-blog/site-app/style/main.css"
+site-addr = "127.0.0.1:3001"
+reload-port = 3003
+browserquery = "defaults"
+bin-features = ["ssr"]
 lib-features = ["hydrate"]
 lib-profile-release = "release-wasm"
 

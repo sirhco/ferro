@@ -1,16 +1,17 @@
 //! End-to-end test: REST mutations fire HookEvents through the registry.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{
-    ContentType, FieldDef, FieldId, FieldKind, Locale, NewContent, Permission, Role, RoleId,
-    Scope, Site, SiteSettings, User, UserId,
+    ContentType, FieldDef, FieldId, FieldKind, Locale, NewContent, Permission, Role, RoleId, Scope,
+    Site, SiteSettings, User, UserId,
 };
 use ferro_media::MediaConfig;
 use ferro_plugin::{HookEvent, HookHandler, HookRegistry};
@@ -124,9 +125,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<AppState>, Arc<RecordingHook>, Con
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap())
-        .await
-        .unwrap();
+    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap()).await.unwrap();
 
     let sessions = Arc::new(MemorySessionStore::new());
     let auth = Arc::new(AuthService::new(repo.clone(), sessions));

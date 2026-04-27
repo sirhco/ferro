@@ -4,9 +4,11 @@ use ferro_core::User;
 use ferro_storage::Repository;
 use time::{Duration, OffsetDateTime};
 
-use crate::error::{AuthError, AuthResult};
-use crate::password::{hash_password, verify_password};
-use crate::session::{default_ttl, new_token, Session, SessionStore};
+use crate::{
+    error::{AuthError, AuthResult},
+    password::{hash_password, verify_password},
+    session::{default_ttl, new_token, Session, SessionStore},
+};
 
 pub struct AuthService {
     pub repo: Arc<dyn Repository>,
@@ -39,7 +41,7 @@ impl AuthService {
             created_at: OffsetDateTime::now_utc(),
             last_login: None,
             password_changed_at: None,
-        totp_secret: None,
+            totp_secret: None,
         };
         let user = self.repo.users().upsert(user).await?;
         Ok(user)
@@ -85,12 +87,8 @@ impl AuthService {
 
     pub async fn resolve_session(&self, token: &str) -> AuthResult<(Session, User)> {
         let session = self.sessions.get(token).await?.ok_or(AuthError::SessionNotFound)?;
-        let user = self
-            .repo
-            .users()
-            .get(session.user_id)
-            .await?
-            .ok_or(AuthError::SessionNotFound)?;
+        let user =
+            self.repo.users().get(session.user_id).await?.ok_or(AuthError::SessionNotFound)?;
         Ok((session, user))
     }
 }

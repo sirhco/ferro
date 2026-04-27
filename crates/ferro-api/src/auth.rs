@@ -1,14 +1,13 @@
 use std::sync::Arc;
 
-use axum::extract::FromRequestParts;
-use axum::http::header::AUTHORIZATION;
-use axum::http::request::Parts;
-use axum::http::HeaderMap;
+use axum::{
+    extract::FromRequestParts,
+    http::{header::AUTHORIZATION, request::Parts, HeaderMap},
+};
 use ferro_auth::{AuthContext, JwtClaims};
 use ferro_core::{Role, RoleId, User};
 
-use crate::error::ApiError;
-use crate::state::AppState;
+use crate::{error::ApiError, state::AppState};
 
 /// Authenticated caller: validated JWT, hydrated user, roles resolved into
 /// an `AuthContext` ready for policy checks.
@@ -30,9 +29,7 @@ impl AuthUser {
         let Some(header) = headers.get(AUTHORIZATION).and_then(|v| v.to_str().ok()) else {
             return Ok(None);
         };
-        let token = match header
-            .strip_prefix("Bearer ")
-            .or_else(|| header.strip_prefix("bearer "))
+        let token = match header.strip_prefix("Bearer ").or_else(|| header.strip_prefix("bearer "))
         {
             Some(t) if !t.trim().is_empty() => t.trim(),
             _ => return Ok(None),
@@ -40,12 +37,7 @@ impl AuthUser {
 
         let claims = state.jwt.verify(token).map_err(|_| ApiError::Unauthorized)?;
         let user_id = claims.user_id().map_err(|_| ApiError::Unauthorized)?;
-        let user = state
-            .repo
-            .users()
-            .get(user_id)
-            .await?
-            .ok_or(ApiError::Unauthorized)?;
+        let user = state.repo.users().get(user_id).await?.ok_or(ApiError::Unauthorized)?;
         if !user.active {
             return Err(ApiError::Forbidden("account disabled".into()));
         }
@@ -70,9 +62,7 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
         parts: &mut Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
-        AuthUser::try_from_headers(state, &parts.headers)
-            .await?
-            .ok_or(ApiError::Unauthorized)
+        AuthUser::try_from_headers(state, &parts.headers).await?.ok_or(ApiError::Unauthorized)
     }
 }
 

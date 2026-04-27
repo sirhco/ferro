@@ -1,7 +1,6 @@
 //! Typed identifiers. ULID under the hood — lexicographic sort = creation order.
 
-use std::fmt;
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;

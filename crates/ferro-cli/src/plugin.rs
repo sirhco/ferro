@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-use std::process::Command;
-use std::sync::Arc;
+use std::{path::PathBuf, process::Command, sync::Arc};
 
 use anyhow::{anyhow, Context, Result};
 use clap::Subcommand;
@@ -125,9 +123,8 @@ async fn install(
         }
     }
 
-    let wasm_src = crate_path
-        .join("target/wasm32-wasip2/release")
-        .join(format!("{wasm_basename}.wasm"));
+    let wasm_src =
+        crate_path.join("target/wasm32-wasip2/release").join(format!("{wasm_basename}.wasm"));
     if !wasm_src.exists() {
         return Err(anyhow!(
             "expected wasm artifact at {} (run without --no-build, or check Cargo.toml [package].name)",

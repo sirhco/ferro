@@ -111,10 +111,7 @@ pub async fn run(cmd: Cmd, config_path: PathBuf) -> Result<()> {
     }
 }
 
-async fn create_user(
-    repo: &dyn ferro_storage::Repository,
-    args: CreateUserArgs,
-) -> Result<()> {
+async fn create_user(repo: &dyn ferro_storage::Repository, args: CreateUserArgs) -> Result<()> {
     if repo.users().by_email(&args.email).await?.is_some() {
         bail!("email `{}` already in use", args.email);
     }
@@ -178,32 +175,19 @@ async fn list_roles(repo: &dyn ferro_storage::Repository) -> Result<()> {
         return Ok(());
     }
     for r in roles {
-        println!(
-            "{}  {}  perms={:?}",
-            r.id,
-            style(&r.name).cyan(),
-            r.permissions
-        );
+        println!("{}  {}  perms={:?}", r.id, style(&r.name).cyan(), r.permissions);
     }
     Ok(())
 }
 
-async fn grant_role(
-    repo: &dyn ferro_storage::Repository,
-    args: GrantRoleArgs,
-) -> Result<()> {
+async fn grant_role(repo: &dyn ferro_storage::Repository, args: GrantRoleArgs) -> Result<()> {
     let mut user = resolve_user_record(repo, &args.user).await?;
     let role_id = resolve_role(repo, &args.role).await?;
     if !user.roles.contains(&role_id) {
         user.roles.push(role_id);
         repo.users().upsert(user.clone()).await?;
     }
-    println!(
-        "{} {} now has {} role(s)",
-        style("✓").green(),
-        user.email,
-        user.roles.len()
-    );
+    println!("{} {} now has {} role(s)", style("✓").green(), user.email, user.roles.len());
     Ok(())
 }
 
@@ -216,12 +200,7 @@ async fn seed_admin_role(repo: &dyn ferro_storage::Repository) -> Result<()> {
 
 /// Return the id of the `admin` role, creating it if absent.
 async fn ensure_admin_role(repo: &dyn ferro_storage::Repository) -> Result<RoleId> {
-    if let Some(existing) = repo
-        .users()
-        .list_roles()
-        .await?
-        .into_iter()
-        .find(|r| r.name == "admin")
+    if let Some(existing) = repo.users().list_roles().await?.into_iter().find(|r| r.name == "admin")
     {
         return Ok(existing.id);
     }
@@ -241,12 +220,7 @@ fn build_role(args: CreateRoleArgs) -> Role {
         Preset::Reader => vec![Permission::Read(Scope::Global)],
         Preset::Custom => Vec::new(),
     };
-    Role {
-        id: RoleId::new(),
-        name: args.name,
-        description: args.description,
-        permissions,
-    }
+    Role { id: RoleId::new(), name: args.name, description: args.description, permissions }
 }
 
 /// Accept a typed-id (`role_<ulid>`) OR a role name. Names look up by linear
@@ -267,19 +241,9 @@ async fn resolve_role(repo: &dyn ferro_storage::Repository, key: &str) -> Result
         .with_context(|| format!("no role named `{key}`"))
 }
 
-async fn resolve_user_record(
-    repo: &dyn ferro_storage::Repository,
-    key: &str,
-) -> Result<User> {
+async fn resolve_user_record(repo: &dyn ferro_storage::Repository, key: &str) -> Result<User> {
     if let Ok(id) = key.parse::<UserId>() {
-        return repo
-            .users()
-            .get(id)
-            .await?
-            .with_context(|| format!("user id `{key}` not found"));
+        return repo.users().get(id).await?.with_context(|| format!("user id `{key}` not found"));
     }
-    repo.users()
-        .by_email(key)
-        .await?
-        .with_context(|| format!("no user with email `{key}`"))
+    repo.users().by_email(key).await?.with_context(|| format!("no user with email `{key}`"))
 }

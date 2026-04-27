@@ -55,11 +55,8 @@ pub struct MediaBlob {
 pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
     let cfg = FerroConfig::load(&config_path).await?;
     let repo = ferro_storage::connect(&cfg.storage).await?;
-    let media_store = if args.include_media {
-        Some(ferro_media::connect(&cfg.media).await?)
-    } else {
-        None
-    };
+    let media_store =
+        if args.include_media { Some(ferro_media::connect(&cfg.media).await?) } else { None };
 
     let sites = repo.sites().list().await?;
     let mut types = Vec::new();
@@ -97,16 +94,7 @@ pub async fn run(args: Args, config_path: PathBuf) -> Result<()> {
     }
 
     let version = if media_blobs.is_empty() { 1 } else { 2 };
-    let bundle = Bundle {
-        version,
-        sites,
-        types,
-        content,
-        users,
-        roles,
-        media,
-        media_blobs,
-    };
+    let bundle = Bundle { version, sites, types, content, users, roles, media, media_blobs };
     let json = serde_json::to_vec_pretty(&bundle)?;
     tokio::fs::write(&args.out, json).await?;
     println!(

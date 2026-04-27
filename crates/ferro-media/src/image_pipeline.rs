@@ -60,9 +60,7 @@ fn resize(img: &DynamicImage, t: &Transform) -> DynamicImage {
         (None, None, _) => img.clone(),
         (Some(w), Some(h), Fit::Fill) => img.resize_exact(w, h, FilterType::Lanczos3),
         (Some(w), Some(h), Fit::Cover) => img.resize_to_fill(w, h, FilterType::Lanczos3),
-        (Some(w), Some(h), Fit::Contain | Fit::Inside) => {
-            img.resize(w, h, FilterType::Lanczos3)
-        }
+        (Some(w), Some(h), Fit::Contain | Fit::Inside) => img.resize(w, h, FilterType::Lanczos3),
         (Some(w), None, _) => img.resize(w, u32::MAX, FilterType::Lanczos3),
         (None, Some(h), _) => img.resize(u32::MAX, h, FilterType::Lanczos3),
     }

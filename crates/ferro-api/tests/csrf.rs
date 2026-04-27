@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{AuthService, JwtManager, MemorySessionStore};
 use ferro_media::MediaConfig;
@@ -14,10 +16,7 @@ use tower::ServiceExt;
 async fn state() -> (tempfile::TempDir, Arc<AppState>) {
     let tmp = tempfile::tempdir().unwrap();
     let storage = StorageConfig::FsJson { path: tmp.path().join("data") };
-    let media = MediaConfig::Local {
-        path: tmp.path().join("media"),
-        base_url: None,
-    };
+    let media = MediaConfig::Local { path: tmp.path().join("media"), base_url: None };
     tokio::fs::create_dir_all(tmp.path().join("media")).await.unwrap();
     let repo: Arc<dyn ferro_storage::Repository> =
         Arc::from(ferro_storage::connect(&storage).await.unwrap());
@@ -34,10 +33,8 @@ async fn state() -> (tempfile::TempDir, Arc<AppState>) {
 async fn mint_endpoint_sets_cookie_and_returns_token() {
     let (_tmp, state) = state().await;
     let app = ferro_api::router(state);
-    let resp = app
-        .oneshot(Request::get("/api/v1/auth/csrf").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let resp =
+        app.oneshot(Request::get("/api/v1/auth/csrf").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let cookie = resp
         .headers()
@@ -51,12 +48,7 @@ async fn mint_endpoint_sets_cookie_and_returns_token() {
     let bytes = to_bytes(resp.into_body(), 4096).await.unwrap();
     let v: Value = serde_json::from_slice(&bytes).unwrap();
     let json_token = v["token"].as_str().unwrap().to_string();
-    let cookie_token = cookie
-        .strip_prefix("ferro_csrf=")
-        .unwrap()
-        .split(';')
-        .next()
-        .unwrap();
+    let cookie_token = cookie.strip_prefix("ferro_csrf=").unwrap().split(';').next().unwrap();
     assert_eq!(json_token, cookie_token);
     assert_eq!(json_token.len(), 64, "expected 32-byte hex");
 }

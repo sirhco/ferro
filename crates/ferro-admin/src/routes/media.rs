@@ -1,8 +1,7 @@
 use leptos::prelude::*;
 use serde_json::Value;
 
-use crate::routes::layout::Shell;
-use crate::state::AdminState;
+use crate::{routes::layout::Shell, state::AdminState};
 
 #[component]
 pub fn MediaLibrary() -> impl IntoView {

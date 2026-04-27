@@ -3,9 +3,7 @@
 //! Drives the full transport: graphql-transport-ws subprotocol, connection_init
 //! → subscribe → fire mutation → assert next event surfaces.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
@@ -18,8 +16,7 @@ use ferro_storage::StorageConfig;
 use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use time::OffsetDateTime;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio_tungstenite::tungstenite::{client::IntoClientRequest, protocol::Message};
 
 const EMAIL: &str = "admin@example.com";
 const PASSWORD: &str = "correct-horse-battery-staple";
@@ -106,9 +103,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<AppState>, ContentType) {
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap())
-        .await
-        .unwrap();
+    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap()).await.unwrap();
 
     let sessions = Arc::new(MemorySessionStore::new());
     let auth = Arc::new(AuthService::new(repo.clone(), sessions));
@@ -143,17 +138,12 @@ async fn graphql_subscription_emits_content_created() {
 
     // Connect WS with the graphql-transport-ws subprotocol.
     let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
-    req.headers_mut().insert(
-        "Sec-WebSocket-Protocol",
-        "graphql-transport-ws".parse().unwrap(),
-    );
+    req.headers_mut().insert("Sec-WebSocket-Protocol", "graphql-transport-ws".parse().unwrap());
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
 
     // Handshake — token goes in connection_init payload (graphql-transport-ws auth convention).
     ws.send(Message::Text(
-        json!({ "type": "connection_init", "payload": { "token": token } })
-            .to_string()
-            .into(),
+        json!({ "type": "connection_init", "payload": { "token": token } }).to_string(),
     ))
     .await
     .unwrap();
@@ -168,7 +158,7 @@ async fn graphql_subscription_emits_content_created() {
             "query": "subscription { contentChanges { kind slug status } }"
         }
     });
-    ws.send(Message::Text(subscribe.to_string().into())).await.unwrap();
+    ws.send(Message::Text(subscribe.to_string())).await.unwrap();
 
     // Give the broadcast subscriber a tick to register before we fire.
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -246,16 +236,11 @@ async fn graphql_subscription_drops_events_on_unauthorized_types() {
     let token = login_token(&base_http).await;
 
     let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
-    req.headers_mut().insert(
-        "Sec-WebSocket-Protocol",
-        "graphql-transport-ws".parse().unwrap(),
-    );
+    req.headers_mut().insert("Sec-WebSocket-Protocol", "graphql-transport-ws".parse().unwrap());
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
 
     ws.send(Message::Text(
-        json!({ "type": "connection_init", "payload": { "token": token } })
-            .to_string()
-            .into(),
+        json!({ "type": "connection_init", "payload": { "token": token } }).to_string(),
     ))
     .await
     .unwrap();
@@ -268,8 +253,7 @@ async fn graphql_subscription_drops_events_on_unauthorized_types() {
             "type": "subscribe",
             "payload": { "query": "subscription { contentChanges { kind typeSlug } }" }
         })
-        .to_string()
-        .into(),
+        .to_string(),
     ))
     .await
     .unwrap();
@@ -277,8 +261,9 @@ async fn graphql_subscription_drops_events_on_unauthorized_types() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     // Dispatch one event the user CAN read (post) and one they cannot (secret).
-    use ferro_core::{Content as Ce, ContentId as Cid, FieldValue as Fv, Locale, Status};
     use std::collections::BTreeMap as Map;
+
+    use ferro_core::{Content as Ce, ContentId as Cid, FieldValue as Fv, Locale, Status};
     let now = OffsetDateTime::now_utc();
     let permitted = Ce {
         id: Cid::new(),
@@ -362,17 +347,12 @@ async fn graphql_subscription_rejects_missing_token() {
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
-    req.headers_mut().insert(
-        "Sec-WebSocket-Protocol",
-        "graphql-transport-ws".parse().unwrap(),
-    );
+    req.headers_mut().insert("Sec-WebSocket-Protocol", "graphql-transport-ws".parse().unwrap());
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
 
-    ws.send(Message::Text(
-        json!({ "type": "connection_init", "payload": {} }).to_string().into(),
-    ))
-    .await
-    .unwrap();
+    ws.send(Message::Text(json!({ "type": "connection_init", "payload": {} }).to_string()))
+        .await
+        .unwrap();
 
     // The server should refuse the handshake — either via a `connection_error`
     // frame or by closing the socket with a 4xxx code.
@@ -417,16 +397,11 @@ async fn graphql_subscription_rejects_invalid_token() {
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     let mut req = format!("ws://{addr}/graphql/ws").into_client_request().unwrap();
-    req.headers_mut().insert(
-        "Sec-WebSocket-Protocol",
-        "graphql-transport-ws".parse().unwrap(),
-    );
+    req.headers_mut().insert("Sec-WebSocket-Protocol", "graphql-transport-ws".parse().unwrap());
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.expect("ws connect");
 
     ws.send(Message::Text(
-        json!({ "type": "connection_init", "payload": { "token": "garbage" } })
-            .to_string()
-            .into(),
+        json!({ "type": "connection_init", "payload": { "token": "garbage" } }).to_string(),
     ))
     .await
     .unwrap();

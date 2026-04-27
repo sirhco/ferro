@@ -1,19 +1,21 @@
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::stream::{self, StreamExt, TryStreamExt};
-use futures::Stream;
-use tokio::fs;
-use tokio::io::AsyncWriteExt;
+use futures::{
+    stream::{self, StreamExt, TryStreamExt},
+    Stream,
+};
+use tokio::{fs, io::AsyncWriteExt};
 use tokio_util_hack::ReaderStream;
 use url::Url;
 
 mod tokio_util_hack {
     //! Tiny reader→stream adapter so we don't drag in tokio-util just for this.
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
+    use std::{
+        pin::Pin,
+        task::{Context, Poll},
+    };
 
     use bytes::Bytes;
     use futures::Stream;
@@ -51,9 +53,11 @@ mod tokio_util_hack {
     }
 }
 
-use crate::config::MediaConfig;
-use crate::error::{MediaError, MediaResult};
-use crate::store::{ByteStream, MediaRef, MediaStore};
+use crate::{
+    config::MediaConfig,
+    error::{MediaError, MediaResult},
+    store::{ByteStream, MediaRef, MediaStore},
+};
 
 pub async fn connect(cfg: &MediaConfig) -> MediaResult<Box<dyn MediaStore>> {
     let MediaConfig::Local { path, base_url } = cfg else {
@@ -106,8 +110,9 @@ impl MediaStore for LocalStore {
         f.flush().await?;
 
         let url = match &self.base_url {
-            Some(b) => Some(Url::parse(&format!("{}/{}", b.trim_end_matches('/'), key)).ok())
-                .flatten(),
+            Some(b) => {
+                Some(Url::parse(&format!("{}/{}", b.trim_end_matches('/'), key)).ok()).flatten()
+            }
             None => None,
         };
         Ok(MediaRef { key: key.to_string(), size: written, mime: mime.to_string(), url })

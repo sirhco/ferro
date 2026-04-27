@@ -41,7 +41,8 @@ pub fn PluginsPage() -> impl IntoView {
                         if e.status() == Some(403) {
                             msg.push_str(" (your role doesn't have ManagePlugins)");
                         } else if e.status() == Some(503) {
-                            msg = "Plugin host not initialized — check ferro.toml [plugins].".into();
+                            msg =
+                                "Plugin host not initialized — check ferro.toml [plugins].".into();
                         }
                         error.set(msg);
                     }
@@ -83,7 +84,9 @@ pub fn PluginsPage() -> impl IntoView {
             let path = format!("/api/v1/plugins/{}/enabled", name);
             wasm_bindgen_futures::spawn_local(async move {
                 #[derive(Serialize)]
-                struct Body { enabled: bool }
+                struct Body {
+                    enabled: bool,
+                }
                 match crate::api::post::<PluginInfo, _>(&path, &Body { enabled: on }).await {
                     Ok(info) => {
                         plugins.update(|list| {

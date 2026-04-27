@@ -1,15 +1,16 @@
 //! End-to-end test for the REST auth + write path against the fs-json backend.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{
-    Content, ContentType, FieldDef, FieldId, FieldKind, FieldValue, Locale, NewContent,
-    Permission, Role, RoleId, Scope, Site, SiteSettings, User, UserId,
+    Content, ContentType, FieldDef, FieldId, FieldKind, FieldValue, Locale, NewContent, Permission,
+    Role, RoleId, Scope, Site, SiteSettings, User, UserId,
 };
 use ferro_media::MediaConfig;
 use ferro_storage::StorageConfig;
@@ -112,21 +113,13 @@ async fn fixture() -> Fixture {
     // `User.password_hash` is `#[serde(skip_serializing)]`, so going through
     // the repo would drop the hash on disk. Write the JSON directly so the
     // fs-json backend can read it back with `by_email`.
-    let user_path = tmp
-        .path()
-        .join("data/users")
-        .join(format!("{}.json", user.id));
+    let user_path = tmp.path().join("data/users").join(format!("{}.json", user.id));
     let mut user_value = serde_json::to_value(&user).unwrap();
     user_value
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(
-        &user_path,
-        serde_json::to_vec_pretty(&user_value).unwrap(),
-    )
-    .await
-    .unwrap();
+    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap()).await.unwrap();
 
     let sessions = Arc::new(MemorySessionStore::new());
     let auth = Arc::new(AuthService::new(repo.clone(), sessions));
@@ -163,11 +156,7 @@ async fn login_returns_token_and_write_requires_it() {
 
     // Login
     let (status, value) = json_body(
-        post_json(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        post_json("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
         fx.state.clone(),
     )
     .await;
@@ -187,19 +176,13 @@ async fn login_returns_token_and_write_requires_it() {
         author_id: None,
     })
     .unwrap();
-    let (status, _) = json_body(
-        post_json("/api/v1/content/post", body.clone(), None),
-        fx.state.clone(),
-    )
-    .await;
+    let (status, _) =
+        json_body(post_json("/api/v1/content/post", body.clone(), None), fx.state.clone()).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
     // Create with token -> 200
-    let (status, created) = json_body(
-        post_json("/api/v1/content/post", body, Some(&token)),
-        fx.state.clone(),
-    )
-    .await;
+    let (status, created) =
+        json_body(post_json("/api/v1/content/post", body, Some(&token)), fx.state.clone()).await;
     assert_eq!(status, StatusCode::OK);
     let created: Content = serde_json::from_value(created).expect("content JSON");
     assert_eq!(created.slug, "hello-world");
@@ -212,11 +195,7 @@ async fn patch_publish_delete_round_trip() {
 
     // Login
     let (_s, v) = json_body(
-        post_json(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        post_json("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
         fx.state.clone(),
     )
     .await;
@@ -235,11 +214,8 @@ async fn patch_publish_delete_round_trip() {
         author_id: None,
     })
     .unwrap();
-    let (s, _c) = json_body(
-        post_json("/api/v1/content/post", body, Some(&token)),
-        fx.state.clone(),
-    )
-    .await;
+    let (s, _c) =
+        json_body(post_json("/api/v1/content/post", body, Some(&token)), fx.state.clone()).await;
     assert_eq!(s, StatusCode::OK);
 
     // PATCH
@@ -248,9 +224,7 @@ async fn patch_publish_delete_round_trip() {
         .uri("/api/v1/content/post/alpha")
         .header(header::CONTENT_TYPE, "application/json")
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::from(
-            json!({ "data": { "title": "Alpha v2" } }).to_string(),
-        ))
+        .body(Body::from(json!({ "data": { "title": "Alpha v2" } }).to_string()))
         .unwrap();
     let (s, v) = json_body(patch_req, fx.state.clone()).await;
     assert_eq!(s, StatusCode::OK);

@@ -5,10 +5,12 @@
 //! primary concern. Buckets live in memory; replace with Redis when the
 //! deployment is multi-process.
 
-use std::collections::HashMap;
-use std::net::IpAddr;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    net::IpAddr,
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RateLimitConfig {
@@ -45,13 +47,11 @@ impl RateLimiter {
     pub fn check(&self, ip: IpAddr) -> Option<Duration> {
         let mut buckets = self.buckets.lock().expect("rate-limit mutex poisoned");
         let now = Instant::now();
-        let bucket = buckets.entry(ip).or_insert(Bucket {
-            tokens: self.cfg.max_burst as f64,
-            last: now,
-        });
+        let bucket =
+            buckets.entry(ip).or_insert(Bucket { tokens: self.cfg.max_burst as f64, last: now });
         let elapsed = now.duration_since(bucket.last).as_secs_f64();
-        bucket.tokens = (bucket.tokens + elapsed * self.cfg.refill_per_sec)
-            .min(self.cfg.max_burst as f64);
+        bucket.tokens =
+            (bucket.tokens + elapsed * self.cfg.refill_per_sec).min(self.cfg.max_burst as f64);
         bucket.last = now;
         if bucket.tokens >= 1.0 {
             bucket.tokens -= 1.0;
@@ -81,8 +81,9 @@ impl RateLimiter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::net::Ipv4Addr;
+
+    use super::*;
 
     #[test]
     fn burst_then_refill() {

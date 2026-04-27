@@ -14,17 +14,20 @@
 //! into `data["body"]` if it's missing — keeps the on-disk shape ergonomic
 //! for human editors while the API still sees a complete `Content` record.
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use async_trait::async_trait;
 use ferro_core::*;
-use tokio::fs;
-use tokio::sync::RwLock;
+use tokio::{fs, sync::RwLock};
 
-use crate::config::StorageConfig;
-use crate::error::{StorageError, StorageResult};
-use crate::repo::*;
+use crate::{
+    config::StorageConfig,
+    error::{StorageError, StorageResult},
+    repo::*,
+};
 
 pub async fn connect(cfg: &StorageConfig) -> StorageResult<Box<dyn Repository>> {
     let StorageConfig::FsMarkdown { path } = cfg else {
@@ -54,9 +57,9 @@ impl FsMarkdownRepo {
 
     async fn read_json<T: serde::de::DeserializeOwned>(p: &Path) -> StorageResult<Option<T>> {
         match fs::read(p).await {
-            Ok(b) => serde_json::from_slice(&b)
-                .map(Some)
-                .map_err(|e| StorageError::Serde(e.to_string())),
+            Ok(b) => {
+                serde_json::from_slice(&b).map(Some).map_err(|e| StorageError::Serde(e.to_string()))
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(e) => Err(StorageError::Io(e)),
         }
@@ -103,10 +106,7 @@ impl FsMarkdownRepo {
     }
 
     fn content_path(&self, site_slug: &str, type_slug: &str, slug: &str, locale: &str) -> PathBuf {
-        self.root
-            .join(site_slug)
-            .join(type_slug)
-            .join(format!("{slug}.{locale}.md"))
+        self.root.join(site_slug).join(type_slug).join(format!("{slug}.{locale}.md"))
     }
 
     async fn write_content(&self, c: &Content) -> StorageResult<()> {
@@ -125,8 +125,8 @@ impl FsMarkdownRepo {
             }
             _ => String::new(),
         };
-        let header_yaml = serde_yaml::to_string(&header)
-            .map_err(|e| StorageError::Serde(e.to_string()))?;
+        let header_yaml =
+            serde_yaml::to_string(&header).map_err(|e| StorageError::Serde(e.to_string()))?;
         let mut file = String::with_capacity(header_yaml.len() + body_text.len() + 16);
         file.push_str("---\n");
         file.push_str(&header_yaml);
@@ -147,12 +147,10 @@ impl FsMarkdownRepo {
         };
         let (header, body) = split_front_matter(&text)
             .ok_or_else(|| StorageError::Backend("missing front-matter".into()))?;
-        let mut content: Content = serde_yaml::from_str(header)
-            .map_err(|e| StorageError::Serde(e.to_string()))?;
+        let mut content: Content =
+            serde_yaml::from_str(header).map_err(|e| StorageError::Serde(e.to_string()))?;
         if !body.trim().is_empty() && !content.data.contains_key("body") {
-            content
-                .data
-                .insert("body".into(), FieldValue::String(body.to_string()));
+            content.data.insert("body".into(), FieldValue::String(body.to_string()));
         }
         Ok(Some(content))
     }
@@ -203,13 +201,27 @@ impl FsMarkdownRepo {
 
 #[async_trait]
 impl Repository for FsMarkdownRepo {
-    fn sites(&self) -> &dyn SiteRepo { self }
-    fn types(&self) -> &dyn ContentTypeRepo { self }
-    fn content(&self) -> &dyn ContentRepo { self }
-    fn users(&self) -> &dyn UserRepo { self }
-    fn media(&self) -> &dyn MediaMetaRepo { self }
-    fn versions(&self) -> &dyn ContentVersionRepo { self }
-    async fn migrate(&self) -> StorageResult<()> { Ok(()) }
+    fn sites(&self) -> &dyn SiteRepo {
+        self
+    }
+    fn types(&self) -> &dyn ContentTypeRepo {
+        self
+    }
+    fn content(&self) -> &dyn ContentRepo {
+        self
+    }
+    fn users(&self) -> &dyn UserRepo {
+        self
+    }
+    fn media(&self) -> &dyn MediaMetaRepo {
+        self
+    }
+    fn versions(&self) -> &dyn ContentVersionRepo {
+        self
+    }
+    async fn migrate(&self) -> StorageResult<()> {
+        Ok(())
+    }
     async fn health(&self) -> StorageResult<()> {
         if self.root.exists() {
             Ok(())
@@ -352,11 +364,7 @@ impl ContentRepo for FsMarkdownRepo {
         let per_page = q.per_page.unwrap_or(20).max(1);
         let start = ((page - 1) * per_page) as usize;
         let end = (start + per_page as usize).min(items.len());
-        let items = if start < items.len() {
-            items[start..end].to_vec()
-        } else {
-            Vec::new()
-        };
+        let items = if start < items.len() { items[start..end].to_vec() } else { Vec::new() };
         Ok(Page { items, total, page, per_page })
     }
     async fn create(&self, site: SiteId, new: NewContent) -> StorageResult<Content> {
@@ -378,12 +386,11 @@ impl ContentRepo for FsMarkdownRepo {
         Ok(c)
     }
     async fn update(&self, id: ContentId, patch: ContentPatch) -> StorageResult<Content> {
-        let mut current = ContentRepo::get(self, id)
-            .await?
-            .ok_or(StorageError::NotFound)?;
+        let mut current = ContentRepo::get(self, id).await?.ok_or(StorageError::NotFound)?;
         // Path may move if slug changes.
         let (site_slug, type_slug) = self.slugs_for(current.site_id, current.type_id).await?;
-        let old_path = self.content_path(&site_slug, &type_slug, &current.slug, current.locale.as_str());
+        let old_path =
+            self.content_path(&site_slug, &type_slug, &current.slug, current.locale.as_str());
         if let Some(slug) = patch.slug {
             current.slug = slug;
         }
@@ -401,9 +408,7 @@ impl ContentRepo for FsMarkdownRepo {
         Ok(current)
     }
     async fn publish(&self, id: ContentId) -> StorageResult<Content> {
-        let mut current = ContentRepo::get(self, id)
-            .await?
-            .ok_or(StorageError::NotFound)?;
+        let mut current = ContentRepo::get(self, id).await?.ok_or(StorageError::NotFound)?;
         let now = time::OffsetDateTime::now_utc();
         current.status = Status::Published;
         current.published_at = Some(now);
@@ -534,11 +539,7 @@ impl ContentVersionRepo for FsMarkdownRepo {
     }
 
     async fn create(&self, version: ContentVersion) -> StorageResult<ContentVersion> {
-        let dir = self
-            .root
-            .join("_meta")
-            .join("versions")
-            .join(version.content_id.to_string());
+        let dir = self.root.join("_meta").join("versions").join(version.content_id.to_string());
         fs::create_dir_all(&dir).await?;
         Self::write_json(&dir.join(format!("{}.json", version.id)), &version).await?;
         Ok(version)

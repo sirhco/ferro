@@ -9,17 +9,21 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
-use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
-use axum::response::IntoResponse;
-use axum::routing::get;
-use axum::Router;
+use axum::{
+    extract::{Path, State},
+    http::header::{CACHE_CONTROL, CONTENT_TYPE},
+    response::IntoResponse,
+    routing::get,
+    Router,
+};
 use ferro_core::{Content, ContentType, FieldDef, FieldKind, FieldValue, RichFormat, Site};
 use serde_json::Value;
 
-use crate::auth::AuthUser;
-use crate::error::{ApiError, ApiResult};
-use crate::state::AppState;
+use crate::{
+    auth::AuthUser,
+    error::{ApiError, ApiResult},
+    state::AppState,
+};
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new().route("/preview/{type_slug}/{slug}", get(render_preview))
@@ -32,13 +36,7 @@ async fn render_preview(
 ) -> ApiResult<impl IntoResponse> {
     let (_site, ty, content) = resolve(&state, &type_slug, &slug).await?;
     let html = render_html(&ty, &content);
-    Ok((
-        [
-            (CACHE_CONTROL, "no-store"),
-            (CONTENT_TYPE, "text/html; charset=utf-8"),
-        ],
-        html,
-    ))
+    Ok(([(CACHE_CONTROL, "no-store"), (CONTENT_TYPE, "text/html; charset=utf-8")], html))
 }
 
 async fn resolve(
@@ -48,18 +46,9 @@ async fn resolve(
 ) -> ApiResult<(Site, ContentType, Content)> {
     let sites = state.repo.sites().list().await?;
     let site = sites.into_iter().next().ok_or(ApiError::NotFound)?;
-    let ty = state
-        .repo
-        .types()
-        .by_slug(site.id, type_slug)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    let content = state
-        .repo
-        .content()
-        .by_slug(site.id, ty.id, slug)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let ty = state.repo.types().by_slug(site.id, type_slug).await?.ok_or(ApiError::NotFound)?;
+    let content =
+        state.repo.content().by_slug(site.id, ty.id, slug).await?.ok_or(ApiError::NotFound)?;
     Ok((site, ty, content))
 }
 
@@ -111,10 +100,9 @@ fn render_field(def: &FieldDef, val: Option<&Value>) -> String {
         (FieldKind::RichText { .. }, Some(v)) => {
             format!("<pre>{}</pre>", escape_html(&v.to_string()))
         }
-        (FieldKind::Media { .. }, Some(Value::String(id))) if !id.is_empty() => format!(
-            r#"<figure><img src="/media/{}" alt="" /></figure>"#,
-            escape_html(id)
-        ),
+        (FieldKind::Media { .. }, Some(Value::String(id))) if !id.is_empty() => {
+            format!(r#"<figure><img src="/media/{}" alt="" /></figure>"#, escape_html(id))
+        }
         (FieldKind::Boolean, Some(Value::Bool(b))) => {
             format!(r#"<p>{}</p>"#, if *b { "✓" } else { "✗" })
         }

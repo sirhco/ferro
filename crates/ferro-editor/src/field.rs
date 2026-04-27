@@ -1,8 +1,10 @@
 use ferro_core::{FieldDef, FieldKind, FieldValue, RichFormat};
 use leptos::prelude::*;
 
-use crate::blocks::{BlockEditor, Document};
-use crate::markdown::MarkdownEditor;
+use crate::{
+    blocks::{BlockEditor, Document},
+    markdown::MarkdownEditor,
+};
 
 /// A generic field editor that dispatches on the field definition's kind.
 #[component]

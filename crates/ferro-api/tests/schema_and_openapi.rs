@@ -1,15 +1,16 @@
 //! Schema-migration round-trip + OpenAPI smoke test.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{
-    ContentType, FieldDef, FieldId, FieldKind, FieldValue, Locale, Permission, Role, RoleId,
-    Scope, Site, SiteSettings, Status, User, UserId,
+    ContentType, FieldDef, FieldId, FieldKind, FieldValue, Locale, Permission, Role, RoleId, Site,
+    SiteSettings, Status, User, UserId,
 };
 use ferro_media::MediaConfig;
 use ferro_storage::{schema as schema_migrator, StorageConfig};
@@ -20,13 +21,7 @@ use tower::ServiceExt;
 const EMAIL: &str = "admin@example.com";
 const PASSWORD: &str = "correct-horse-battery-staple";
 
-async fn fixture() -> (
-    tempfile::TempDir,
-    Arc<AppState>,
-    Site,
-    ContentType,
-    Role,
-) {
+async fn fixture() -> (tempfile::TempDir, Arc<AppState>, Site, ContentType, Role) {
     let tmp = tempfile::tempdir().unwrap();
     let storage = StorageConfig::FsJson { path: tmp.path().join("data") };
     let media = MediaConfig::Local {
@@ -123,9 +118,7 @@ async fn fixture() -> (
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap())
-        .await
-        .unwrap();
+    tokio::fs::write(&user_path, serde_json::to_vec_pretty(&user_value).unwrap()).await.unwrap();
 
     // Seed two content rows with both fields populated.
     for slug in ["alpha", "beta"] {
@@ -180,18 +173,11 @@ async fn schema_migrator_renames_field_in_existing_content() {
     assert_eq!(changes.len(), 2, "expected rename + add, got {changes:?}");
 
     state.repo.types().upsert(new_ty.clone()).await.unwrap();
-    let touched = schema_migrator::apply_changes(&*state.repo, site.id, ty.id, &changes)
-        .await
-        .unwrap();
+    let touched =
+        schema_migrator::apply_changes(&*state.repo, site.id, ty.id, &changes).await.unwrap();
     assert_eq!(touched, 2, "two seed rows should have been migrated");
 
-    let alpha = state
-        .repo
-        .content()
-        .by_slug(site.id, ty.id, "alpha")
-        .await
-        .unwrap()
-        .unwrap();
+    let alpha = state.repo.content().by_slug(site.id, ty.id, "alpha").await.unwrap().unwrap();
     // Old key gone
     assert!(!alpha.data.contains_key("body"));
     // New key present with original value
@@ -210,20 +196,17 @@ async fn schema_migrator_renames_field_in_existing_content() {
 async fn openapi_endpoint_returns_valid_spec() {
     let (_tmp, state, _site, _ty, _role) = fixture().await;
     let app = ferro_api::router(state);
-    let resp = app
-        .oneshot(
-            Request::get("/api/openapi.json")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let resp =
+        app.oneshot(Request::get("/api/openapi.json").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let bytes = to_bytes(resp.into_body(), 1024 * 1024).await.unwrap();
     let v: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(v["info"]["title"], "Ferro API");
     assert!(v["paths"].as_object().unwrap().contains_key("/api/v1/types"));
-    assert!(v["paths"].as_object().unwrap().contains_key("/api/v1/content/{type_slug}/{slug}/publish"));
+    assert!(v["paths"]
+        .as_object()
+        .unwrap()
+        .contains_key("/api/v1/content/{type_slug}/{slug}/publish"));
     assert!(v["components"]["securitySchemes"]["bearer"].is_object());
 }
 
@@ -273,13 +256,7 @@ async fn type_patch_route_runs_migrator() {
     assert_eq!(v["rows_migrated"], 2);
     assert_eq!(v["changes"][0]["op"], "renamed");
 
-    let alpha = state
-        .repo
-        .content()
-        .by_slug(site.id, ty.id, "alpha")
-        .await
-        .unwrap()
-        .unwrap();
+    let alpha = state.repo.content().by_slug(site.id, ty.id, "alpha").await.unwrap().unwrap();
     assert!(alpha.data.contains_key("summary"));
     assert!(!alpha.data.contains_key("body"));
 }

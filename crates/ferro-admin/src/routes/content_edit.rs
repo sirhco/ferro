@@ -6,8 +6,10 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 use serde_json::{Map as JsonMap, Value};
 
-use crate::routes::layout::Shell;
-use crate::state::{AdminState, TypeSummary};
+use crate::{
+    routes::layout::Shell,
+    state::{AdminState, TypeSummary},
+};
 
 #[component]
 pub fn ContentEdit() -> impl IntoView {
@@ -47,8 +49,7 @@ pub fn ContentEdit() -> impl IntoView {
             let ts2 = ts.clone();
             let slug2 = slug.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                let path =
-                    format!("/api/v1/content/{}/{}", encode(&ts2), encode(&slug2));
+                let path = format!("/api/v1/content/{}/{}", encode(&ts2), encode(&slug2));
                 match crate::api::get::<Value>(&path).await {
                     Ok(c) => {
                         if let Some(s) = c.get("slug").and_then(|v| v.as_str()) {
@@ -69,8 +70,7 @@ pub fn ContentEdit() -> impl IntoView {
                     }
                     Err(e) => error.set(e.message()),
                 }
-                let vp =
-                    format!("/api/v1/content/{}/{}/versions", encode(&ts), encode(&slug));
+                let vp = format!("/api/v1/content/{}/{}/versions", encode(&ts), encode(&slug));
                 match crate::api::get::<Vec<Value>>(&vp).await {
                     Ok(vs) => versions.set(vs),
                     Err(e) => versions_err.set(e.message()),
@@ -144,11 +144,7 @@ pub fn ContentEdit() -> impl IntoView {
                         patch.insert("slug".into(), Value::String(new_slug));
                     }
                     patch.insert("data".into(), parsed);
-                    let path = format!(
-                        "/api/v1/content/{}/{}",
-                        encode(&ts),
-                        encode(&cur_slug)
-                    );
+                    let path = format!("/api/v1/content/{}/{}", encode(&ts), encode(&cur_slug));
                     match crate::api::patch::<Value, _>(&path, &Value::Object(patch)).await {
                         Ok(_) => {
                             st.set_toast_ok("Saved.");
@@ -176,7 +172,9 @@ pub fn ContentEdit() -> impl IntoView {
         let slug = entry_slug.get();
         #[cfg(feature = "hydrate")]
         {
-            let confirm_msg = format!("Restore version captured at {captured}? Current state will be snapshotted first.");
+            let confirm_msg = format!(
+                "Restore version captured at {captured}? Current state will be snapshotted first."
+            );
             let win = web_sys::window();
             let ok = win
                 .as_ref()
@@ -368,8 +366,7 @@ pub fn ContentEdit() -> impl IntoView {
 
 #[cfg(feature = "hydrate")]
 fn install_preview_reloader(type_slug: &str, slug: &str) {
-    use wasm_bindgen::closure::Closure;
-    use wasm_bindgen::JsCast;
+    use wasm_bindgen::{closure::Closure, JsCast};
 
     let url = format!("/api/v1/events?type={}", encode(type_slug));
     let Ok(es) = web_sys::EventSource::new(&url) else {

@@ -1,6 +1,8 @@
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use ferro_auth::AuthError;
 use ferro_core::CoreError;
 use ferro_media::MediaError;
@@ -45,7 +47,9 @@ struct ErrorBody {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code) = match &self {
-            Self::NotFound | Self::Storage(StorageError::NotFound) => (StatusCode::NOT_FOUND, "not_found"),
+            Self::NotFound | Self::Storage(StorageError::NotFound) => {
+                (StatusCode::NOT_FOUND, "not_found")
+            }
             Self::Unauthorized | Self::Auth(AuthError::InvalidCredentials) => {
                 (StatusCode::UNAUTHORIZED, "unauthorized")
             }

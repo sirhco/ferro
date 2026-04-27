@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{Locale, Site, SiteSettings, User, UserId};
@@ -97,11 +99,7 @@ async fn totp_setup_enable_login_full_flow() {
     // Login (no TOTP yet) — should return tokens directly.
     let (s, v) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        json_post("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
@@ -137,11 +135,7 @@ async fn totp_setup_enable_login_full_flow() {
     // Login again — now MFA-required.
     let (s, v) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        json_post("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
@@ -165,11 +159,7 @@ async fn totp_setup_enable_login_full_flow() {
     // Need a fresh challenge for the success case.
     let (_s, v) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        json_post("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
     )
     .await;
     let mfa_token2 = v["mfa_token"].as_str().unwrap().to_string();
@@ -195,11 +185,7 @@ async fn totp_setup_rejected_when_already_enabled() {
     // Login → setup → enable.
     let (_s, v) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        json_post("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
     )
     .await;
     let token = v["token"].as_str().unwrap().to_string();
@@ -242,11 +228,7 @@ async fn totp_disable_clears_requirement() {
 
     let (_s, v) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        json_post("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
     )
     .await;
     let token = v["token"].as_str().unwrap().to_string();
@@ -274,11 +256,7 @@ async fn totp_disable_clears_requirement() {
     let code = ferro_auth::totp::generate(&secret, OffsetDateTime::now_utc()).unwrap();
     let (s, _) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/totp/disable",
-            json!({ "code": code }),
-            Some(&token),
-        ),
+        json_post("/api/v1/auth/totp/disable", json!({ "code": code }), Some(&token)),
     )
     .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
@@ -286,11 +264,7 @@ async fn totp_disable_clears_requirement() {
     // Login no longer requires MFA.
     let (_s, v) = req_json(
         state,
-        json_post(
-            "/api/v1/auth/login",
-            json!({ "email": EMAIL, "password": PASSWORD }),
-            None,
-        ),
+        json_post("/api/v1/auth/login", json!({ "email": EMAIL, "password": PASSWORD }), None),
     )
     .await;
     assert!(v["token"].as_str().is_some());

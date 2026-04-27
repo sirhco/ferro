@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 use time::OffsetDateTime;
 
-use crate::error::CoreError;
-use crate::id::FieldId;
+use crate::{error::CoreError, id::FieldId};
 
 /// Logical field kinds supported by the editor + schema.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,10 +69,7 @@ impl FieldValue {
 
         if let V::Null = self {
             if def.required {
-                return Err(CoreError::Validation(format!(
-                    "field `{}` is required",
-                    def.slug
-                )));
+                return Err(CoreError::Validation(format!("field `{}` is required", def.slug)));
             }
             return Ok(());
         }
@@ -123,10 +119,7 @@ impl FieldValue {
                 if options.iter().any(|o| o == s) {
                     Ok(())
                 } else {
-                    Err(CoreError::Validation(format!(
-                        "field `{}`: `{s}` not in enum",
-                        def.slug
-                    )))
+                    Err(CoreError::Validation(format!("field `{}`: `{s}` not in enum", def.slug)))
                 }
             }
             (K::Reference { multiple, .. }, v) => match (multiple, v) {
@@ -144,10 +137,7 @@ impl FieldValue {
                 ))),
             },
             (K::Json, _) => Ok(()),
-            _ => Err(CoreError::Validation(format!(
-                "field `{}`: type mismatch",
-                def.slug
-            ))),
+            _ => Err(CoreError::Validation(format!("field `{}`: type mismatch", def.slug))),
         }
     }
 }

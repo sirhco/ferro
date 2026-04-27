@@ -5,23 +5,21 @@
 //! Browser clients should use the standard `EventSource` API; server-to-server
 //! clients can stream the body directly.
 
-use std::convert::Infallible;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{convert::Infallible, sync::Arc, time::Duration};
 
-use axum::extract::{Query, State};
-use axum::http::HeaderMap;
-use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::routing::get;
-use axum::Router;
+use axum::{
+    extract::{Query, State},
+    http::HeaderMap,
+    response::sse::{Event, KeepAlive, Sse},
+    routing::get,
+    Router,
+};
 use ferro_plugin::HookEvent;
 use futures::stream::{Stream, StreamExt};
 use serde::Deserialize;
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::auth::AuthUser;
-use crate::error::ApiError;
-use crate::state::AppState;
+use crate::{auth::AuthUser, error::ApiError, state::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct EventQuery {
@@ -55,12 +53,7 @@ async fn events(
             let token = params.token.as_deref().ok_or(ApiError::Unauthorized)?;
             let claims = state.jwt.verify(token).map_err(|_| ApiError::Unauthorized)?;
             let user_id = claims.user_id().map_err(|_| ApiError::Unauthorized)?;
-            let user = state
-                .repo
-                .users()
-                .get(user_id)
-                .await?
-                .ok_or(ApiError::Unauthorized)?;
+            let user = state.repo.users().get(user_id).await?.ok_or(ApiError::Unauthorized)?;
             if !user.active {
                 return Err(ApiError::Forbidden("account disabled".into()));
             }
@@ -103,11 +96,8 @@ async fn events(
             Ok::<_, Infallible>(Event::default().event(event_kind(&evt)).data(payload))
         });
 
-    Ok(Sse::new(stream).keep_alive(
-        KeepAlive::new()
-            .interval(Duration::from_secs(15))
-            .text("keep-alive"),
-    ))
+    Ok(Sse::new(stream)
+        .keep_alive(KeepAlive::new().interval(Duration::from_secs(15)).text("keep-alive")))
 }
 
 fn event_kind(evt: &HookEvent) -> &'static str {

@@ -40,12 +40,9 @@ fuel_per_request = 10000000
 async fn admin_cli_bootstraps_first_admin() {
     let tmp = tempfile::tempdir().unwrap();
     let cfg_path = tmp.path().join("ferro.toml");
-    tokio::fs::write(
-        &cfg_path,
-        ferro_toml(&tmp.path().join("data"), &tmp.path().join("media")),
-    )
-    .await
-    .unwrap();
+    tokio::fs::write(&cfg_path, ferro_toml(&tmp.path().join("data"), &tmp.path().join("media")))
+        .await
+        .unwrap();
 
     // Single-shot bootstrap: --with-admin auto-seeds the role and grants it.
     admin::run(
@@ -66,12 +63,7 @@ async fn admin_cli_bootstraps_first_admin() {
     // Verify directly via repo.
     let cfg = FerroConfig::load(&cfg_path).await.unwrap();
     let repo = ferro_storage::connect(&cfg.storage).await.unwrap();
-    let user = repo
-        .users()
-        .by_email("root@example.com")
-        .await
-        .unwrap()
-        .expect("user persisted");
+    let user = repo.users().by_email("root@example.com").await.unwrap().expect("user persisted");
     assert!(user.active);
     assert_eq!(user.roles.len(), 1, "one role attached");
     assert!(user.password_hash.is_some(), "hash persisted");
@@ -110,12 +102,9 @@ async fn admin_cli_bootstraps_first_admin() {
 async fn admin_cli_grants_existing_role() {
     let tmp = tempfile::tempdir().unwrap();
     let cfg_path = tmp.path().join("ferro.toml");
-    tokio::fs::write(
-        &cfg_path,
-        ferro_toml(&tmp.path().join("data"), &tmp.path().join("media")),
-    )
-    .await
-    .unwrap();
+    tokio::fs::write(&cfg_path, ferro_toml(&tmp.path().join("data"), &tmp.path().join("media")))
+        .await
+        .unwrap();
 
     // Create a role + user, then grant by name.
     admin::run(
@@ -156,12 +145,7 @@ async fn admin_cli_grants_existing_role() {
 
     let cfg = FerroConfig::load(&cfg_path).await.unwrap();
     let repo = ferro_storage::connect(&cfg.storage).await.unwrap();
-    let user = repo
-        .users()
-        .by_email("viewer@example.com")
-        .await
-        .unwrap()
-        .unwrap();
+    let user = repo.users().by_email("viewer@example.com").await.unwrap().unwrap();
     assert_eq!(user.roles.len(), 1);
 
     // Grant again — should still be 1 (idempotent).
@@ -174,11 +158,6 @@ async fn admin_cli_grants_existing_role() {
     )
     .await
     .unwrap();
-    let user2 = repo
-        .users()
-        .by_email("viewer@example.com")
-        .await
-        .unwrap()
-        .unwrap();
+    let user2 = repo.users().by_email("viewer@example.com").await.unwrap().unwrap();
     assert_eq!(user2.roles.len(), 1, "duplicate role should be deduped");
 }

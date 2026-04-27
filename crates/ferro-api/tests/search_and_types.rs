@@ -1,10 +1,11 @@
 //! Content search query + content-type CRUD over REST.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{
@@ -75,11 +76,9 @@ async fn fixture() -> (tempfile::TempDir, Arc<AppState>, Site, ContentType) {
     repo.types().upsert(ty.clone()).await.unwrap();
 
     // Seed three rows: alpha/bravo/charlie with searchable titles.
-    for (slug, title) in [
-        ("alpha", "Hello world"),
-        ("bravo", "Goodbye galaxy"),
-        ("charlie", "Hello hello"),
-    ] {
+    for (slug, title) in
+        [("alpha", "Hello world"), ("bravo", "Goodbye galaxy"), ("charlie", "Hello hello")]
+    {
         let mut data = BTreeMap::new();
         data.insert("title".into(), FieldValue::String(title.into()));
         let now = OffsetDateTime::now_utc();
@@ -151,11 +150,7 @@ async fn list_content_with_q_filters_substring() {
 
     let app = ferro_api::router(state.clone());
     let resp = app
-        .oneshot(
-            Request::get("/api/v1/content/post?q=hello")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::get("/api/v1/content/post?q=hello").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -169,11 +164,7 @@ async fn list_content_with_q_filters_substring() {
     // Empty match
     let app = ferro_api::router(state);
     let resp = app
-        .oneshot(
-            Request::get("/api/v1/content/post?q=zzz_no_match")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::get("/api/v1/content/post?q=zzz_no_match").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let bytes = to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
@@ -187,9 +178,8 @@ async fn type_crud_round_trip_via_rest() {
     let (_tmp, state, site, _) = fixture().await;
     let token = login(state.clone()).await;
 
-    let now_rfc = OffsetDateTime::now_utc()
-        .format(&time::format_description::well_known::Rfc3339)
-        .unwrap();
+    let now_rfc =
+        OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap();
     // Typed ids use `#[serde(transparent)]` over `Ulid`, so the wire shape is
     // the bare 26-char Crockford string — not the prefixed Display form.
     let new_ty = json!({
@@ -231,14 +221,8 @@ async fn type_crud_round_trip_via_rest() {
 
     // List should now contain `post` + `page`.
     let app = ferro_api::router(state.clone());
-    let resp = app
-        .oneshot(
-            Request::get("/api/v1/types")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let resp =
+        app.oneshot(Request::get("/api/v1/types").body(Body::empty()).unwrap()).await.unwrap();
     let bytes = to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
     let arr: Value = serde_json::from_slice(&bytes).unwrap();
     let slugs: Vec<&str> =

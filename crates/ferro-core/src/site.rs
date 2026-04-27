@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use url::Url;
 
-use crate::id::SiteId;
-use crate::locale::Locale;
+use crate::{id::SiteId, locale::Locale};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Site {

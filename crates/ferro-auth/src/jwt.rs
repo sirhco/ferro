@@ -16,9 +16,7 @@ pub struct JwtClaims {
 
 impl JwtClaims {
     pub fn user_id(&self) -> AuthResult<UserId> {
-        self.sub
-            .parse()
-            .map_err(|_| AuthError::Hash("invalid sub claim".into()))
+        self.sub.parse().map_err(|_| AuthError::Hash("invalid sub claim".into()))
     }
 }
 

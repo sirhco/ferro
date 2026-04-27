@@ -2,8 +2,10 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::capability::Capability;
-use crate::error::{PluginError, PluginResult};
+use crate::{
+    capability::Capability,
+    error::{PluginError, PluginResult},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
@@ -27,8 +29,7 @@ pub struct RawCapability(pub String);
 impl PluginManifest {
     pub async fn load(path: impl AsRef<Path>) -> PluginResult<Self> {
         let bytes = tokio::fs::read(path.as_ref()).await?;
-        let s = std::str::from_utf8(&bytes)
-            .map_err(|e| PluginError::Manifest(e.to_string()))?;
+        let s = std::str::from_utf8(&bytes).map_err(|e| PluginError::Manifest(e.to_string()))?;
         let m: Self = toml::from_str(s)?;
         m.validate()?;
         Ok(m)

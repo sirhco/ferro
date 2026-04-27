@@ -4,8 +4,7 @@ use std::sync::Arc;
 
 use wasmtime_wasi::{WasiCtx, WasiView};
 
-use crate::capability::Capability;
-use crate::hook::HookRegistry;
+use crate::{capability::Capability, hook::HookRegistry};
 
 /// Per-invocation host context. Holds granted capabilities + references back
 /// to the rest of the system. One `HostContext` is created per `wasmtime::Store`
@@ -72,9 +71,7 @@ fn capability_covers(granted: &Capability, want: &Capability) -> bool {
     use Capability as C;
     match (granted, want) {
         (C::HttpFetch { host: g }, C::HttpFetch { host: w }) => g == "*" || g == w,
-        (C::HttpServe { prefix: g }, C::HttpServe { prefix: w }) => {
-            w.starts_with(g.as_str())
-        }
+        (C::HttpServe { prefix: g }, C::HttpServe { prefix: w }) => w.starts_with(g.as_str()),
         (a, b) => a == b,
     }
 }

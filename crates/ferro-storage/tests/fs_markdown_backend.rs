@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 
 use ferro_core::{
-    Content, ContentId, ContentQuery, ContentType, ContentTypeId, ContentVersion,
-    ContentVersionId, FieldDef, FieldId, FieldKind, FieldValue, Locale, NewContent, Site, SiteId,
-    SiteSettings, Status, User, UserId,
+    Content, ContentId, ContentQuery, ContentType, ContentTypeId, ContentVersion, ContentVersionId,
+    FieldDef, FieldId, FieldKind, FieldValue, Locale, NewContent, Site, SiteId, SiteSettings,
+    Status, User, UserId,
 };
 use ferro_storage::StorageConfig;
 use time::OffsetDateTime;
@@ -80,10 +80,7 @@ async fn site_type_content_round_trip() {
     // Create content with a `body` markdown field.
     let mut data = BTreeMap::new();
     data.insert("title".into(), FieldValue::String("Hello".into()));
-    data.insert(
-        "body".into(),
-        FieldValue::String("# Heading\n\nSome body text.".into()),
-    );
+    data.insert("body".into(), FieldValue::String("# Heading\n\nSome body text.".into()));
     let new = NewContent {
         type_id: ty.id,
         slug: "hello".into(),
@@ -102,12 +99,7 @@ async fn site_type_content_round_trip() {
     assert!(raw.contains("# Heading"), "body should appear after front-matter: {raw}");
 
     // by_slug round-trip
-    let fetched = repo
-        .content()
-        .by_slug(site.id, ty.id, "hello")
-        .await
-        .unwrap()
-        .unwrap();
+    let fetched = repo.content().by_slug(site.id, ty.id, "hello").await.unwrap().unwrap();
     assert_eq!(fetched.id, created.id);
     match fetched.data.get("title") {
         Some(FieldValue::String(s)) if s == "Hello" => {}

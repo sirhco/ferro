@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use axum::body::{to_bytes, Body};
-use axum::http::{Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{AuthService, JwtManager, MemorySessionStore};
 use ferro_media::MediaConfig;
@@ -34,10 +36,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<AppState>) {
 async fn root_serves_landing_html() {
     let (_tmp, state) = fixture().await;
     let app = ferro_api::router(state);
-    let resp = app
-        .oneshot(Request::get("/").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let resp = app.oneshot(Request::get("/").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let ct = resp
         .headers()
@@ -59,9 +58,6 @@ async fn admin_route_not_owned_by_ferro_api() {
     // CLI's `leptos_routes` layer is the single source of truth.
     let (_tmp, state) = fixture().await;
     let app = ferro_api::router(state);
-    let resp = app
-        .oneshot(Request::get("/admin").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let resp = app.oneshot(Request::get("/admin").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }

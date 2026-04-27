@@ -1,5 +1,4 @@
-use std::pin::Pin;
-use std::time::Duration;
+use std::{pin::Pin, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -11,8 +10,7 @@ use crate::error::MediaResult;
 
 /// Generic byte stream the store can accept or return. We use a pinned dyn
 /// stream so callers are decoupled from any specific SDK's type.
-pub type ByteStream =
-    Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static>>;
+pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaRef {
@@ -24,7 +22,13 @@ pub struct MediaRef {
 
 #[async_trait]
 pub trait MediaStore: Send + Sync {
-    async fn put(&self, key: &str, body: ByteStream, mime: &str, size: u64) -> MediaResult<MediaRef>;
+    async fn put(
+        &self,
+        key: &str,
+        body: ByteStream,
+        mime: &str,
+        size: u64,
+    ) -> MediaResult<MediaRef>;
     async fn get(&self, key: &str) -> MediaResult<ByteStream>;
     async fn delete(&self, key: &str) -> MediaResult<()>;
     async fn exists(&self, key: &str) -> MediaResult<bool>;

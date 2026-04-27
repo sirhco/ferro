@@ -11,9 +11,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use crate::error::PluginResult;
-use crate::hook::{HookEvent, HookHandler};
-use crate::runtime::PluginHandle;
+use crate::{
+    error::PluginResult,
+    hook::{HookEvent, HookHandler},
+    runtime::PluginHandle,
+};
 
 /// Hook handler that forwards events to a wasmtime-backed plugin.
 pub struct WasmPluginHook {

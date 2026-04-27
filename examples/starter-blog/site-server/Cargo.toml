@@ -5,15 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
-description = "Public-facing zero-JS Leptos SSR site for the starter-blog example."
+description = "Public-facing starter-site SSR server (Leptos islands)."
 
 [[bin]]
 name = "starter-site"
 path = "src/main.rs"
 
+[features]
+default = ["ssr"]
+ssr = ["starter-site-app/ssr"]
+
 [dependencies]
-ferro-core.workspace = true
-ferro-editor = { workspace = true }
+starter-site-app = { path = "../site-app" }
 
 axum = { workspace = true }
 tokio = { workspace = true }

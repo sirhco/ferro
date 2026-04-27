@@ -3,11 +3,13 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::error::{CoreError, CoreResult};
-use crate::field::{FieldDef, FieldKind, FieldValue};
-use crate::id::{ContentId, ContentTypeId, SiteId, UserId};
-use crate::locale::Locale;
-use crate::validation::validate_slug;
+use crate::{
+    error::{CoreError, CoreResult},
+    field::{FieldDef, FieldKind, FieldValue},
+    id::{ContentId, ContentTypeId, SiteId, UserId},
+    locale::Locale,
+    validation::validate_slug,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentType {
@@ -30,6 +32,7 @@ pub struct ContentType {
 }
 
 impl ContentType {
+    #[must_use]
     pub fn field(&self, slug: &str) -> Option<&FieldDef> {
         self.fields.iter().find(|f| f.slug == slug)
     }
@@ -72,9 +75,7 @@ impl ContentType {
                         });
                     }
                     if !field_kind_compatible(&of.kind, &nf.kind) {
-                        out.push(FieldChange::KindChanged {
-                            slug: nf.slug.clone(),
-                        });
+                        out.push(FieldChange::KindChanged { slug: nf.slug.clone() });
                     }
                 }
             }
@@ -126,16 +127,12 @@ fn field_kind_compatible(a: &FieldKind, b: &FieldKind) -> bool {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum Status {
+    #[default]
     Draft,
     Published,
     Archived,
-}
-
-impl Default for Status {
-    fn default() -> Self {
-        Self::Draft
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,9 +236,7 @@ impl ContentPatch {
             return Ok(());
         };
         for (key, value) in data {
-            let def = ty
-                .field(key)
-                .ok_or_else(|| CoreError::UnknownField(key.clone()))?;
+            let def = ty.field(key).ok_or_else(|| CoreError::UnknownField(key.clone()))?;
             value.validate_against(def)?;
         }
         Ok(())
@@ -251,8 +246,10 @@ impl ContentPatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::field::{FieldDef, FieldKind};
-    use crate::id::{ContentTypeId, FieldId, SiteId};
+    use crate::{
+        field::{FieldDef, FieldKind},
+        id::{ContentTypeId, FieldId, SiteId},
+    };
 
     fn test_type() -> ContentType {
         let now = OffsetDateTime::now_utc();
@@ -305,11 +302,7 @@ mod tests {
         let mut data = BTreeMap::new();
         data.insert("title".into(), FieldValue::String("Hi".into()));
         data.insert("count".into(), FieldValue::Number(3.0));
-        let p = ContentPatch {
-            slug: Some("hello-world".into()),
-            status: None,
-            data: Some(data),
-        };
+        let p = ContentPatch { slug: Some("hello-world".into()), status: None, data: Some(data) };
         assert!(p.validate(&test_type()).is_ok());
     }
 
@@ -331,11 +324,7 @@ mod tests {
 
     #[test]
     fn patch_validate_rejects_bad_slug() {
-        let p = ContentPatch {
-            slug: Some("Bad Slug!".into()),
-            status: None,
-            data: None,
-        };
+        let p = ContentPatch { slug: Some("Bad Slug!".into()), status: None, data: None };
         assert!(p.validate(&test_type()).is_err());
     }
 

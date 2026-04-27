@@ -9,8 +9,7 @@
 
 use ferro_core::{ContentQuery, ContentTypeId, FieldChange, FieldValue, SiteId};
 
-use crate::error::StorageResult;
-use crate::repo::Repository;
+use crate::{error::StorageResult, repo::Repository};
 
 /// Apply a list of field changes to every content row with the given
 /// `(site, type_id)`. Returns the number of rows touched.

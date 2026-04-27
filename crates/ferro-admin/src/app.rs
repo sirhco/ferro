@@ -1,10 +1,11 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
-use leptos_router::components::{Route, Router, Routes};
-use leptos_router::path;
+use leptos_router::{
+    components::{Route, Router, Routes},
+    path,
+};
 
-use crate::routes;
-use crate::state::AdminState;
+use crate::{routes, state::AdminState};
 
 /// HTML shell rendered on the server. The admin app runs in CSR mode — the
 /// server only emits the bootstrap script tag plus an empty mount point, and

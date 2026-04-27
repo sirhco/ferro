@@ -19,8 +19,9 @@ use crate::state::AdminState;
 /// detect a missing `user` and redirect to `/admin/login`.
 #[cfg(feature = "hydrate")]
 pub async fn bootstrap_after_mount(state: AdminState) {
-    use crate::state::CurrentUser;
     use leptos::prelude::*;
+
+    use crate::state::CurrentUser;
 
     if api::get_token().is_none() {
         state.bootstrapped.set(true);
@@ -29,7 +30,8 @@ pub async fn bootstrap_after_mount(state: AdminState) {
     match api::get::<serde_json::Value>("/api/v1/auth/me").await {
         Ok(me) => {
             if let Ok(mut user) = serde_json::from_value::<CurrentUser>(me.clone()) {
-                user.totp_enabled = me.get("totp_enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+                user.totp_enabled =
+                    me.get("totp_enabled").and_then(|v| v.as_bool()).unwrap_or(false);
                 state.user.set(Some(user));
             }
         }

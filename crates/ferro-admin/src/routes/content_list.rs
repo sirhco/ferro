@@ -1,10 +1,11 @@
 use leptos::prelude::*;
-use leptos_router::components::A;
-use leptos_router::hooks::{use_navigate, use_params_map};
+use leptos_router::{
+    components::A,
+    hooks::{use_navigate, use_params_map},
+};
 use serde_json::Value;
 
-use crate::routes::layout::Shell;
-use crate::state::AdminState;
+use crate::{routes::layout::Shell, state::AdminState};
 
 #[component]
 pub fn ContentList() -> impl IntoView {
@@ -137,11 +138,8 @@ fn ContentTable(
         #[cfg(feature = "hydrate")]
         {
             wasm_bindgen_futures::spawn_local(async move {
-                let path = format!(
-                    "/api/v1/content/{}/{}/publish",
-                    encode(&type_slug),
-                    encode(&slug)
-                );
+                let path =
+                    format!("/api/v1/content/{}/{}/publish", encode(&type_slug), encode(&slug));
                 match crate::api::post_empty::<Value>(&path).await {
                     Ok(_) => {
                         state.set_toast_ok(format!("Published {slug}."));
@@ -169,11 +167,7 @@ fn ContentTable(
                 return;
             }
             wasm_bindgen_futures::spawn_local(async move {
-                let path = format!(
-                    "/api/v1/content/{}/{}",
-                    encode(&type_slug),
-                    encode(&slug)
-                );
+                let path = format!("/api/v1/content/{}/{}", encode(&type_slug), encode(&slug));
                 match crate::api::delete::<Value>(&path).await {
                     Ok(_) => {
                         state.set_toast_ok(format!("Deleted {slug}."));

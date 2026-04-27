@@ -15,11 +15,13 @@
 //! [`ferro_auth::session::new_token`] — opaque, single-use is *not* required
 //! (the per-session lifetime is fine for double-submit).
 
-use axum::extract::Request;
-use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
-use axum::middleware::Next;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{
+    extract::Request,
+    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::Serialize;
 
 pub const COOKIE_NAME: &str = "ferro_csrf";
@@ -63,10 +65,7 @@ fn has_bearer(headers: &HeaderMap) -> bool {
 /// Axum middleware enforcing the double-submit invariant on mutating requests
 /// that carry a session cookie.
 pub async fn enforce(req: Request, next: Next) -> Result<Response, StatusCode> {
-    if matches!(
-        req.method(),
-        &Method::GET | &Method::HEAD | &Method::OPTIONS
-    ) {
+    if matches!(req.method(), &Method::GET | &Method::HEAD | &Method::OPTIONS) {
         return Ok(next.run(req).await);
     }
     if has_bearer(req.headers()) {
@@ -77,11 +76,8 @@ pub async fn enforce(req: Request, next: Next) -> Result<Response, StatusCode> {
         // login from a fresh browser) flow through.
         return Ok(next.run(req).await);
     };
-    let header_token = req
-        .headers()
-        .get(HEADER_NAME)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or_default();
+    let header_token =
+        req.headers().get(HEADER_NAME).and_then(|v| v.to_str().ok()).unwrap_or_default();
     if header_token.is_empty() || !ct_eq(header_token.as_bytes(), cookie_token.as_bytes()) {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -98,9 +94,7 @@ pub(crate) struct TokenResponse {
 /// supply it via `X-CSRF-Token`.
 pub async fn mint() -> Response {
     let token = ferro_auth::session::new_token();
-    let cookie = format!(
-        "{COOKIE_NAME}={token}; Path=/; SameSite=Strict",
-    );
+    let cookie = format!("{COOKIE_NAME}={token}; Path=/; SameSite=Strict",);
     let mut resp = Json(TokenResponse { token }).into_response();
     if let Ok(value) = HeaderValue::from_str(&cookie) {
         resp.headers_mut().insert(header::SET_COOKIE, value);
@@ -122,10 +116,7 @@ mod tests {
     #[test]
     fn cookie_extract_picks_named_segment() {
         let mut h = HeaderMap::new();
-        h.insert(
-            header::COOKIE,
-            HeaderValue::from_static("foo=bar; ferro_csrf=token123; baz=qux"),
-        );
+        h.insert(header::COOKIE, HeaderValue::from_static("foo=bar; ferro_csrf=token123; baz=qux"));
         assert_eq!(extract_cookie(&h, COOKIE_NAME).as_deref(), Some("token123"));
     }
 
@@ -139,10 +130,7 @@ mod tests {
     #[test]
     fn bearer_detection_handles_case_and_whitespace() {
         let mut h = HeaderMap::new();
-        h.insert(
-            header::AUTHORIZATION,
-            HeaderValue::from_static(" Bearer xyz"),
-        );
+        h.insert(header::AUTHORIZATION, HeaderValue::from_static(" Bearer xyz"));
         assert!(has_bearer(&h));
         h.insert(header::AUTHORIZATION, HeaderValue::from_static("Basic xyz"));
         assert!(!has_bearer(&h));

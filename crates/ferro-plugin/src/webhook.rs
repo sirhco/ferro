@@ -6,16 +6,17 @@
 //! authenticity. Filtering by event kind keeps high-volume endpoints from
 //! drowning low-priority subscribers.
 
-use std::collections::HashSet;
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
-use crate::error::PluginResult;
-use crate::hook::{HookEvent, HookHandler};
+use crate::{
+    error::PluginResult,
+    hook::{HookEvent, HookHandler},
+};
 
 /// Per-webhook configuration. Multiple webhooks can share the same URL with
 /// different filters; the registry applies them independently.
@@ -83,10 +84,7 @@ impl HookHandler for WebhookHook {
             let sig = sign(secret.as_bytes(), &payload);
             req = req.header("X-Ferro-Signature", sig);
         }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| crate::PluginError::Other(format!("send: {e}")))?;
+        let resp = req.send().await.map_err(|e| crate::PluginError::Other(format!("send: {e}")))?;
         if !resp.status().is_success() {
             return Err(crate::PluginError::Other(format!(
                 "webhook {} returned {}",

@@ -12,12 +12,13 @@ use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use ferro_core::*;
-use tokio::fs;
-use tokio::sync::RwLock;
+use tokio::{fs, sync::RwLock};
 
-use crate::config::StorageConfig;
-use crate::error::{StorageError, StorageResult};
-use crate::repo::*;
+use crate::{
+    config::StorageConfig,
+    error::{StorageError, StorageResult},
+    repo::*,
+};
 
 pub async fn connect(cfg: &StorageConfig) -> StorageResult<Box<dyn Repository>> {
     let StorageConfig::FsJson { path } = cfg else {

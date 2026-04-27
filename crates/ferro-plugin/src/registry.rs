@@ -4,20 +4,23 @@
 //! wrapper around each one ([`crate::WasmPluginHook`]) that the
 //! [`crate::HookRegistry`] dispatches events to.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use serde::Serialize;
-use tokio::fs;
-use tokio::sync::RwLock;
+use tokio::{fs, sync::RwLock};
 
-use crate::capability::Capability;
-use crate::error::{PluginError, PluginResult};
-use crate::hook::HookRegistry;
-use crate::manifest::PluginManifest;
-use crate::runtime::{PluginHandle, PluginRuntime};
-use crate::wasm_hook::WasmPluginHook;
+use crate::{
+    capability::Capability,
+    error::{PluginError, PluginResult},
+    hook::HookRegistry,
+    manifest::PluginManifest,
+    runtime::{PluginHandle, PluginRuntime},
+    wasm_hook::WasmPluginHook,
+};
 
 /// Operator-side grant for a single plugin (mirrors `[[plugins.grants]]` in
 /// `ferro.toml`). Capability strings use the `Capability::FromStr` syntax —
@@ -71,11 +74,8 @@ impl PluginRegistry {
     ) -> Self {
         let mut grant_map: HashMap<String, Vec<Capability>> = HashMap::new();
         for g in grants {
-            let parsed: Vec<Capability> = g
-                .capabilities
-                .iter()
-                .filter_map(|c| c.parse().ok())
-                .collect();
+            let parsed: Vec<Capability> =
+                g.capabilities.iter().filter_map(|c| c.parse().ok()).collect();
             grant_map.insert(g.name.clone(), parsed);
         }
         Self {
@@ -136,12 +136,7 @@ impl PluginRegistry {
     }
 
     async fn resolved_grants(&self, name: &str) -> Vec<Capability> {
-        self.grants
-            .read()
-            .await
-            .get(name)
-            .cloned()
-            .unwrap_or_default()
+        self.grants.read().await.get(name).cloned().unwrap_or_default()
     }
 
     pub async fn get(&self, name: &str) -> PluginResult<Arc<PluginHandle>> {
@@ -189,15 +184,9 @@ impl PluginRegistry {
     /// Update grants for a single plugin and reload just that one. Persisted
     /// only in-memory — operators must edit `ferro.toml` for the change to
     /// survive a restart.
-    pub async fn set_grants(
-        &self,
-        name: &str,
-        capabilities: Vec<String>,
-    ) -> PluginResult<()> {
-        let parsed: Vec<Capability> = capabilities
-            .iter()
-            .map(|s| s.parse())
-            .collect::<PluginResult<Vec<_>>>()?;
+    pub async fn set_grants(&self, name: &str, capabilities: Vec<String>) -> PluginResult<()> {
+        let parsed: Vec<Capability> =
+            capabilities.iter().map(|s| s.parse()).collect::<PluginResult<Vec<_>>>()?;
         self.grants.write().await.insert(name.to_string(), parsed);
         self.reload_one(name).await
     }

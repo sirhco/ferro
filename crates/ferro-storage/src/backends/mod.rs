@@ -1,6 +1,4 @@
-use crate::config::StorageConfig;
-use crate::error::{StorageError, StorageResult};
-use crate::repo::Repository;
+use crate::{config::StorageConfig, error::StorageResult, repo::Repository};
 
 #[cfg(feature = "fs-json")]
 pub mod fs_json;

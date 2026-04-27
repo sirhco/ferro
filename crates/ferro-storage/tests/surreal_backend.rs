@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use ferro_core::{
-    Content, ContentId, ContentQuery, ContentType, ContentTypeId, FieldDef, FieldId, FieldKind,
-    FieldValue, Locale, NewContent, Role, RoleId, Site, SiteId, SiteSettings, Status, User, UserId,
+    ContentId, ContentQuery, ContentType, ContentTypeId, FieldDef, FieldId, FieldKind, FieldValue,
+    Locale, NewContent, Role, RoleId, Site, SiteId, SiteSettings, Status, User, UserId,
 };
 use ferro_storage::{StorageConfig, StorageError};
 use time::OffsetDateTime;
@@ -112,12 +112,7 @@ async fn type_and_content_round_trip() {
     let created = repo.content().create(site.id, new).await.unwrap();
     assert_eq!(created.status, Status::Draft);
 
-    let fetched = repo
-        .content()
-        .by_slug(site.id, ty.id, "hello")
-        .await
-        .unwrap()
-        .unwrap();
+    let fetched = repo.content().by_slug(site.id, ty.id, "hello").await.unwrap().unwrap();
     assert_eq!(fetched.id, created.id);
 
     // Publish
@@ -128,11 +123,7 @@ async fn type_and_content_round_trip() {
     // List with filter
     let page = repo
         .content()
-        .list(ContentQuery {
-            site_id: Some(site.id),
-            type_id: Some(ty.id),
-            ..Default::default()
-        })
+        .list(ContentQuery { site_id: Some(site.id), type_id: Some(ty.id), ..Default::default() })
         .await
         .unwrap();
     assert_eq!(page.items.len(), 1);
@@ -145,11 +136,7 @@ async fn type_and_content_round_trip() {
         .content()
         .update(
             created.id,
-            ferro_core::ContentPatch {
-                slug: None,
-                status: None,
-                data: Some(new_data),
-            },
+            ferro_core::ContentPatch { slug: None, status: None, data: Some(new_data) },
         )
         .await
         .unwrap();
@@ -205,9 +192,6 @@ async fn missing_record_get_returns_none() {
 #[tokio::test]
 async fn update_missing_returns_not_found() {
     let (_tmp, repo) = mem_repo().await;
-    let out = repo
-        .content()
-        .update(ContentId::new(), ferro_core::ContentPatch::default())
-        .await;
+    let out = repo.content().update(ContentId::new(), ferro_core::ContentPatch::default()).await;
     assert!(matches!(out, Err(StorageError::NotFound)));
 }

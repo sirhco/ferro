@@ -108,10 +108,9 @@ async fn write_blob(store: &dyn MediaStore, blob: &MediaBlob) -> Result<()> {
         .decode(&blob.data_base64)
         .with_context(|| format!("decode blob {}", blob.key))?;
     let size = data.len() as u64;
-    let mime = mime_guess::from_path(&blob.key)
-        .first_or_octet_stream()
-        .to_string();
-    let body = Box::pin(stream::once(async move { Ok::<_, std::io::Error>(bytes::Bytes::from(data)) }));
+    let mime = mime_guess::from_path(&blob.key).first_or_octet_stream().to_string();
+    let body =
+        Box::pin(stream::once(async move { Ok::<_, std::io::Error>(bytes::Bytes::from(data)) }));
     store.put(&blob.key, body, &mime, size).await?;
     Ok(())
 }

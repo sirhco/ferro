@@ -2,8 +2,10 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 use serde_json::Value;
 
-use crate::routes::layout::Shell;
-use crate::state::{AdminState, TypeSummary};
+use crate::{
+    routes::layout::Shell,
+    state::{AdminState, TypeSummary},
+};
 
 const FIELD_PRESETS: &[(&str, &str)] = &[
     ("text", "Text"),
@@ -79,9 +81,8 @@ pub fn SchemaList() -> impl IntoView {
         let refresh = refresh.clone();
         #[cfg(feature = "hydrate")]
         {
-            let confirm_msg = format!(
-                "Delete type {slug}? Existing content stays but is orphaned."
-            );
+            let confirm_msg =
+                format!("Delete type {slug}? Existing content stays but is orphaned.");
             let win = web_sys::window();
             let ok = win
                 .as_ref()
@@ -264,7 +265,11 @@ pub fn SchemaEdit() -> impl IntoView {
         let name_v = name_in.get();
         let desc_opt = {
             let d = desc_in.get();
-            if d.is_empty() { None } else { Some(d) }
+            if d.is_empty() {
+                None
+            } else {
+                Some(d)
+            }
         };
         let existing_val = existing.get();
         busy.set(true);
@@ -272,12 +277,8 @@ pub fn SchemaEdit() -> impl IntoView {
         {
             wasm_bindgen_futures::spawn_local(async move {
                 let body = if new_flag {
-                    let site_id = st
-                        .types
-                        .read()
-                        .first()
-                        .map(|t| t.site_id.clone())
-                        .unwrap_or_default();
+                    let site_id =
+                        st.types.read().first().map(|t| t.site_id.clone()).unwrap_or_default();
                     serde_json::json!({
                         "id": new_field_id(),
                         "site_id": site_id,
@@ -317,11 +318,10 @@ pub fn SchemaEdit() -> impl IntoView {
                 match res {
                     Ok(resp) => {
                         if !new_flag {
-                            let migrated = resp.get("rows_migrated").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let migrated =
+                                resp.get("rows_migrated").and_then(|v| v.as_u64()).unwrap_or(0);
                             let slug = body.get("slug").and_then(|v| v.as_str()).unwrap_or("");
-                            st.set_toast_ok(format!(
-                                "Saved {slug} · {migrated} row(s) migrated."
-                            ));
+                            st.set_toast_ok(format!("Saved {slug} · {migrated} row(s) migrated."));
                         } else {
                             let slug = body.get("slug").and_then(|v| v.as_str()).unwrap_or("");
                             st.set_toast_ok(format!("Created {slug}."));

@@ -10,17 +10,23 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::StreamExt;
-use google_cloud_storage::client::{Client, ClientConfig};
-use google_cloud_storage::http::objects::delete::DeleteObjectRequest;
-use google_cloud_storage::http::objects::download::Range;
-use google_cloud_storage::http::objects::get::GetObjectRequest;
-use google_cloud_storage::http::objects::upload::{Media, UploadObjectRequest, UploadType};
-use google_cloud_storage::sign::{SignedURLMethod, SignedURLOptions};
+use google_cloud_storage::{
+    client::{Client, ClientConfig},
+    http::objects::{
+        delete::DeleteObjectRequest,
+        download::Range,
+        get::GetObjectRequest,
+        upload::{Media, UploadObjectRequest, UploadType},
+    },
+    sign::{SignedURLMethod, SignedURLOptions},
+};
 use url::Url;
 
-use crate::config::MediaConfig;
-use crate::error::{MediaError, MediaResult};
-use crate::store::{ByteStream, MediaRef, MediaStore};
+use crate::{
+    config::MediaConfig,
+    error::{MediaError, MediaResult},
+    store::{ByteStream, MediaRef, MediaStore},
+};
 
 pub async fn connect(cfg: &MediaConfig) -> MediaResult<Box<dyn MediaStore>> {
     let MediaConfig::Gcs { bucket, prefix, .. } = cfg else {

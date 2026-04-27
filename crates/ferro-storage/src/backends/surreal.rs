@@ -10,33 +10,30 @@
 use async_trait::async_trait;
 use ferro_core::{
     Content, ContentId, ContentPatch, ContentQuery, ContentType, ContentTypeId, ContentVersion,
-    ContentVersionId, Locale, Media, MediaId, NewContent, Page, Role, RoleId, Site, SiteId,
-    Status, User, UserId,
+    ContentVersionId, Locale, Media, MediaId, NewContent, Page, Role, RoleId, Site, SiteId, Status,
+    User, UserId,
 };
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use surrealdb::engine::any::{connect as sdb_connect, Any};
-use surrealdb::opt::auth::Root;
-use surrealdb::Surreal;
+use serde::{de::DeserializeOwned, Serialize};
+use surrealdb::{
+    engine::any::{connect as sdb_connect, Any},
+    opt::auth::Root,
+    Surreal,
+};
 
-use crate::config::StorageConfig;
-use crate::error::{StorageError, StorageResult};
-use crate::repo::*;
+use crate::{
+    config::StorageConfig,
+    error::{StorageError, StorageResult},
+    repo::*,
+};
 
 pub async fn connect(cfg: &StorageConfig) -> StorageResult<Box<dyn Repository>> {
     let (url, ns, db, creds) = match cfg {
-        StorageConfig::SurrealEmbedded { path, namespace, database } => (
-            format!("rocksdb://{}", path.display()),
-            namespace.clone(),
-            database.clone(),
-            None,
-        ),
-        StorageConfig::SurrealRemote { url, namespace, database, user, pass } => (
-            url.clone(),
-            namespace.clone(),
-            database.clone(),
-            Some((user.clone(), pass.clone())),
-        ),
+        StorageConfig::SurrealEmbedded { path, namespace, database } => {
+            (format!("rocksdb://{}", path.display()), namespace.clone(), database.clone(), None)
+        }
+        StorageConfig::SurrealRemote { url, namespace, database, user, pass } => {
+            (url.clone(), namespace.clone(), database.clone(), Some((user.clone(), pass.clone())))
+        }
         _ => unreachable!("surreal backend received non-surreal config"),
     };
 
@@ -91,9 +88,7 @@ impl SurrealRepo {
         let json = serde_json::to_string(&value).map_err(map_err)?;
         let record_id = sanitize_record_id(id_str);
         self.db
-            .query(format!(
-                "UPSERT type::thing($tbl, $rid) CONTENT {json}"
-            ))
+            .query(format!("UPSERT type::thing($tbl, $rid) CONTENT {json}"))
             .bind(("tbl", table.to_string()))
             .bind(("rid", record_id))
             .await
@@ -169,9 +164,7 @@ fn strip_and_decode<T: DeserializeOwned>(mut row: serde_json::Value) -> StorageR
 /// Our typed-id Display form (`<prefix>_<ulid>`) already satisfies that, but
 /// guard against future format changes.
 fn sanitize_record_id(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
-        .collect()
+    s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect()
 }
 
 #[async_trait]
@@ -197,12 +190,7 @@ impl Repository for SurrealRepo {
 
     async fn migrate(&self) -> StorageResult<()> {
         const SCHEMA: &str = include_str!("./surreal.surql");
-        self.db
-            .query(SCHEMA)
-            .await
-            .map_err(map_err)?
-            .check()
-            .map_err(map_err)?;
+        self.db.query(SCHEMA).await.map_err(map_err)?.check().map_err(map_err)?;
         Ok(())
     }
 
@@ -412,10 +400,8 @@ impl ContentRepo for SurrealRepo {
     }
 
     async fn update(&self, id: ContentId, patch: ContentPatch) -> StorageResult<Content> {
-        let mut current: Content = self
-            .get_one("content", &id.to_string())
-            .await?
-            .ok_or(StorageError::NotFound)?;
+        let mut current: Content =
+            self.get_one("content", &id.to_string()).await?.ok_or(StorageError::NotFound)?;
         if let Some(slug) = patch.slug {
             current.slug = slug;
         }
@@ -431,10 +417,8 @@ impl ContentRepo for SurrealRepo {
     }
 
     async fn publish(&self, id: ContentId) -> StorageResult<Content> {
-        let mut current: Content = self
-            .get_one("content", &id.to_string())
-            .await?
-            .ok_or(StorageError::NotFound)?;
+        let mut current: Content =
+            self.get_one("content", &id.to_string()).await?.ok_or(StorageError::NotFound)?;
         let now = time::OffsetDateTime::now_utc();
         current.status = Status::Published;
         current.published_at = Some(now);
@@ -584,16 +568,12 @@ impl crate::repo::ContentVersionRepo for SurrealRepo {
         rows.into_iter().map(strip_and_decode).collect()
     }
 
-    async fn get(
-        &self,
-        id: ContentVersionId,
-    ) -> StorageResult<Option<ContentVersion>> {
+    async fn get(&self, id: ContentVersionId) -> StorageResult<Option<ContentVersion>> {
         self.get_one("content_version", &id.to_string()).await
     }
 
     async fn create(&self, version: ContentVersion) -> StorageResult<ContentVersion> {
-        self.upsert_record("content_version", &version.id.to_string(), &version)
-            .await?;
+        self.upsert_record("content_version", &version.id.to_string(), &version).await?;
         Ok(version)
     }
 }

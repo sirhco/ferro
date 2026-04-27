@@ -7742,12 +7742,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "starter-site-app"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "console_error_panic_hook",
+ "ferro-editor",
+ "getrandom 0.3.4",
+ "leptos",
+ "leptos_axum",
+ "leptos_meta",
+ "leptos_router",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "starter-site-server"
 version = "0.0.1"
 dependencies = [
  "axum",
- "ferro-core",
- "ferro-editor",
  "hyper 1.9.0",
  "leptos",
  "leptos_axum",
@@ -7756,6 +7775,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "starter-site-app",
  "time",
  "tokio",
  "tower",

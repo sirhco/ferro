@@ -2,13 +2,13 @@
 
 use std::sync::Arc;
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
-use ferro_core::{
-    Locale, Permission, Role, RoleId, Site, SiteSettings, User, UserId,
-};
+use ferro_core::{Locale, Permission, Role, RoleId, Site, SiteSettings, User, UserId};
 use ferro_media::MediaConfig;
 use ferro_storage::StorageConfig;
 use serde_json::{json, Value};
@@ -73,15 +73,8 @@ async fn fixture(non_admin_perms: Vec<Permission>) -> Fixture {
     repo.users().upsert_role(viewer_role.clone()).await.unwrap();
 
     seed_user(&repo, &tmp, ADMIN_EMAIL, "admin", ADMIN_PASSWORD, vec![admin_role.id]).await;
-    seed_user(
-        &repo,
-        &tmp,
-        NON_ADMIN_EMAIL,
-        "viewer",
-        NON_ADMIN_PASSWORD,
-        vec![viewer_role.id],
-    )
-    .await;
+    seed_user(&repo, &tmp, NON_ADMIN_EMAIL, "viewer", NON_ADMIN_PASSWORD, vec![viewer_role.id])
+        .await;
 
     let sessions = Arc::new(MemorySessionStore::new());
     let auth = Arc::new(AuthService::new(repo.clone(), sessions));
@@ -120,9 +113,7 @@ async fn seed_user(
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap())
-        .await
-        .unwrap();
+    tokio::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).await.unwrap();
 }
 
 async fn login(state: Arc<AppState>, email: &str, password: &str) -> String {
@@ -290,12 +281,8 @@ async fn admin_cannot_delete_self() {
             .unwrap(),
     )
     .await;
-    let admin_id = users
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|u| u["email"] == ADMIN_EMAIL)
-        .unwrap()["id"]
+    let admin_id = users.as_array().unwrap().iter().find(|u| u["email"] == ADMIN_EMAIL).unwrap()
+        ["id"]
         .as_str()
         .unwrap()
         .to_string();

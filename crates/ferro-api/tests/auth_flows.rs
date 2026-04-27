@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::{AppState, AuthOptions};
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{Locale, Site, SiteSettings, User, UserId};
@@ -331,11 +333,7 @@ async fn refresh_token_rotates_pair_and_invalidates_old() {
     // Refresh → new pair
     let (s, v) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/refresh",
-            json!({ "refresh_token": refresh1 }),
-            None,
-        ),
+        json_post("/api/v1/auth/refresh", json!({ "refresh_token": refresh1 }), None),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
@@ -348,11 +346,7 @@ async fn refresh_token_rotates_pair_and_invalidates_old() {
     // Re-using refresh1 must fail (one-shot rotation).
     let (s, _) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/refresh",
-            json!({ "refresh_token": refresh1 }),
-            None,
-        ),
+        json_post("/api/v1/auth/refresh", json!({ "refresh_token": refresh1 }), None),
     )
     .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
@@ -360,11 +354,7 @@ async fn refresh_token_rotates_pair_and_invalidates_old() {
     // refresh2 is still valid → can rotate again.
     let (s, _) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/refresh",
-            json!({ "refresh_token": refresh2 }),
-            None,
-        ),
+        json_post("/api/v1/auth/refresh", json!({ "refresh_token": refresh2 }), None),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
@@ -375,11 +365,7 @@ async fn refresh_rejects_garbage_token() {
     let (_tmp, state) = fixture(false).await;
     let (s, _) = req_json(
         state,
-        json_post(
-            "/api/v1/auth/refresh",
-            json!({ "refresh_token": "not-a-real-token" }),
-            None,
-        ),
+        json_post("/api/v1/auth/refresh", json!({ "refresh_token": "not-a-real-token" }), None),
     )
     .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
@@ -405,11 +391,7 @@ async fn logout_revokes_refresh_token() {
     // Logout with refresh in body.
     let (s, _) = req_json(
         state.clone(),
-        json_post(
-            "/api/v1/auth/logout",
-            json!({ "refresh_token": refresh }),
-            Some(&access),
-        ),
+        json_post("/api/v1/auth/logout", json!({ "refresh_token": refresh }), Some(&access)),
     )
     .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
@@ -450,7 +432,5 @@ async fn seed_user(tmp: &tempfile::TempDir, state: &Arc<AppState>, email: &str, 
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap())
-        .await
-        .unwrap();
+    tokio::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).await.unwrap();
 }

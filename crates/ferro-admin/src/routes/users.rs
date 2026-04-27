@@ -342,11 +342,7 @@ fn role_names_for(role_ids: &[String], roles: &[Role]) -> String {
     let mut names: Vec<String> = role_ids
         .iter()
         .map(|id| {
-            roles
-                .iter()
-                .find(|r| &r.id == id)
-                .map(|r| r.name.clone())
-                .unwrap_or_else(|| id.clone())
+            roles.iter().find(|r| &r.id == id).map(|r| r.name.clone()).unwrap_or_else(|| id.clone())
         })
         .collect();
     names.sort();

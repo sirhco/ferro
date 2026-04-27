@@ -7,17 +7,18 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_sdk_s3::error::SdkError;
-use aws_sdk_s3::operation::get_object::GetObjectError;
-use aws_sdk_s3::presigning::PresigningConfig;
-use aws_sdk_s3::primitives::ByteStream as S3ByteStream;
-use bytes::Bytes;
+use aws_sdk_s3::{
+    error::SdkError, operation::get_object::GetObjectError, presigning::PresigningConfig,
+    primitives::ByteStream as S3ByteStream,
+};
 use futures::StreamExt;
 use url::Url;
 
-use crate::config::MediaConfig;
-use crate::error::{MediaError, MediaResult};
-use crate::store::{ByteStream, MediaRef, MediaStore};
+use crate::{
+    config::MediaConfig,
+    error::{MediaError, MediaResult},
+    store::{ByteStream, MediaRef, MediaStore},
+};
 
 pub async fn connect(cfg: &MediaConfig) -> MediaResult<Box<dyn MediaStore>> {
     let MediaConfig::S3 { bucket, region, prefix } = cfg else {
@@ -100,7 +101,7 @@ impl MediaStore for S3Store {
         // Drain into memory to decouple from the SDK's internal stream types.
         // Swap for a streaming adapter in v0.5.
         let data = resp.body.collect().await.map_err(backend)?.into_bytes();
-        let out = futures::stream::once(async move { Ok::<_, std::io::Error>(Bytes::from(data)) });
+        let out = futures::stream::once(async move { Ok::<_, std::io::Error>(data) });
         Ok(Box::pin(out))
     }
 
@@ -116,14 +117,7 @@ impl MediaStore for S3Store {
     }
 
     async fn exists(&self, key: &str) -> MediaResult<bool> {
-        match self
-            .client
-            .head_object()
-            .bucket(&self.bucket)
-            .key(self.full_key(key))
-            .send()
-            .await
-        {
+        match self.client.head_object().bucket(&self.bucket).key(self.full_key(key)).send().await {
             Ok(_) => Ok(true),
             Err(SdkError::ServiceError(e)) if e.raw().status().as_u16() == 404 => Ok(false),
             Err(e) => Err(backend(e)),

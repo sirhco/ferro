@@ -15,12 +15,7 @@ use std::path::PathBuf;
 use ferro_cli::budgets::{collect, Args};
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf()
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
 }
 
 #[test]
@@ -43,12 +38,7 @@ fn admin_bundle_under_budget() {
         return;
     }
 
-    let args = Args {
-        site_dir,
-        max_route_kb: 250,
-        max_total_kb: 1024,
-        verbose: true,
-    };
+    let args = Args { site_dir, max_route_kb: 250, max_total_kb: 1024, verbose: true };
     let report = collect(&args).expect("read pkg dir");
     if report.entries.is_empty() {
         if strict {
@@ -57,10 +47,7 @@ fn admin_bundle_under_budget() {
                 args.site_dir.join("pkg").display()
             );
         }
-        eprintln!(
-            "skipping: no .wasm.br files under {}",
-            args.site_dir.join("pkg").display()
-        );
+        eprintln!("skipping: no .wasm.br files under {}", args.site_dir.join("pkg").display());
         return;
     }
 

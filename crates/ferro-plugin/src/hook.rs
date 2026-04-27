@@ -37,13 +37,19 @@ const BUS_CAPACITY: usize = 256;
 #[non_exhaustive]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HookEvent {
-    ContentCreated { content: Content, type_slug: Option<String> },
+    ContentCreated {
+        content: Content,
+        type_slug: Option<String>,
+    },
     ContentUpdated {
         before: Box<Content>,
         after: Box<Content>,
         type_slug: Option<String>,
     },
-    ContentPublished { content: Content, type_slug: Option<String> },
+    ContentPublished {
+        content: Content,
+        type_slug: Option<String>,
+    },
     ContentDeleted {
         site_id: SiteId,
         type_id: ContentTypeId,

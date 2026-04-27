@@ -1,8 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 
-use crate::routes::layout::Shell;
-use crate::state::AdminState;
+use crate::{routes::layout::Shell, state::AdminState};
 
 #[component]
 pub fn Dashboard() -> impl IntoView {

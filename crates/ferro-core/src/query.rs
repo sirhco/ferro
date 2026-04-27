@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::content::Status;
-use crate::id::{ContentTypeId, SiteId};
-use crate::locale::Locale;
+use crate::{
+    content::Status,
+    id::{ContentTypeId, SiteId},
+    locale::Locale,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ContentQuery {

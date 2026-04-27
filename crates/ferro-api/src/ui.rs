@@ -1,9 +1,7 @@
 //! Operator-facing landing page. The admin UI is the Leptos SSR app in
 //! `ferro-admin`, mounted by the CLI at `/admin/*`.
 
-use axum::response::Html;
-use axum::routing::get;
-use axum::Router;
+use axum::{response::Html, routing::get, Router};
 
 pub fn router<S>() -> Router<S>
 where

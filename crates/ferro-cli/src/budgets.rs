@@ -103,14 +103,11 @@ impl BudgetReport {
 pub fn collect(args: &Args) -> Result<BudgetReport> {
     let pkg_dir = args.site_dir.join("pkg");
     if !pkg_dir.exists() {
-        return Err(anyhow!(
-            "no pkg dir at {} — run `ferro build` first",
-            pkg_dir.display()
-        ));
+        return Err(anyhow!("no pkg dir at {} — run `ferro build` first", pkg_dir.display()));
     }
     let mut entries: Vec<RouteSize> = Vec::new();
-    for dirent in std::fs::read_dir(&pkg_dir)
-        .with_context(|| format!("reading {}", pkg_dir.display()))?
+    for dirent in
+        std::fs::read_dir(&pkg_dir).with_context(|| format!("reading {}", pkg_dir.display()))?
     {
         let dirent = dirent?;
         let path = dirent.path();
@@ -164,10 +161,7 @@ pub async fn run(args: Args) -> Result<()> {
 }
 
 fn is_brotli_wasm(p: &Path) -> bool {
-    p.file_name()
-        .and_then(|n| n.to_str())
-        .map(|n| n.ends_with(".wasm.br"))
-        .unwrap_or(false)
+    p.file_name().and_then(|n| n.to_str()).map(|n| n.ends_with(".wasm.br")).unwrap_or(false)
 }
 
 fn fmt_bytes(n: u64) -> String {
@@ -184,8 +178,9 @@ fn fmt_bytes(n: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::tempdir;
+
+    use super::*;
 
     fn write_br(path: &Path, bytes: usize) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();

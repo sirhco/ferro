@@ -1,24 +1,23 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use async_graphql::http::GraphiQLSource;
-use async_graphql::{Context, InputObject, Object, Schema, Subscription};
+use async_graphql::{http::GraphiQLSource, Context, InputObject, Object, Schema, Subscription};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::extract::State;
-use axum::http::HeaderMap;
-use axum::response::{Html, IntoResponse};
-use axum::routing::{get, post};
-use axum::Router;
-use futures::stream::{Stream, StreamExt as _};
-use tokio_stream::wrappers::BroadcastStream;
+use axum::{
+    extract::State,
+    http::HeaderMap,
+    response::{Html, IntoResponse},
+    routing::{get, post},
+    Router,
+};
 use ferro_auth::authorize;
 use ferro_core::{
     ContentPatch, ContentType, ContentTypeId, FieldValue, NewContent, Permission, Scope, Site,
 };
 use ferro_plugin::HookEvent;
+use futures::stream::{Stream, StreamExt as _};
+use tokio_stream::wrappers::BroadcastStream;
 
-use crate::auth::AuthUser;
-use crate::state::AppState;
+use crate::{auth::AuthUser, state::AppState};
 
 // --- Output nodes ---
 
@@ -182,13 +181,7 @@ impl From<&HookEvent> for ContentEventNode {
                 status: Some(format!("{:?}", content.status).to_lowercase()),
                 rows_migrated: None,
             },
-            HookEvent::ContentDeleted {
-                site_id,
-                type_id,
-                content_id,
-                slug,
-                type_slug,
-            } => Self {
+            HookEvent::ContentDeleted { site_id, type_id, content_id, slug, type_slug } => Self {
                 kind: "content.deleted",
                 content_id: Some(content_id.to_string()),
                 type_id: Some(type_id.to_string()),
@@ -198,13 +191,7 @@ impl From<&HookEvent> for ContentEventNode {
                 status: None,
                 rows_migrated: None,
             },
-            HookEvent::TypeMigrated {
-                site_id,
-                type_id,
-                type_slug,
-                rows_migrated,
-                ..
-            } => Self {
+            HookEvent::TypeMigrated { site_id, type_id, type_slug, rows_migrated, .. } => Self {
                 kind: "type.migrated",
                 content_id: None,
                 type_id: Some(type_id.to_string()),
@@ -266,8 +253,9 @@ impl SubscriptionRoot {
 /// `evt`. `TypeMigrated` requires `ManageSchema` instead of `Read`.
 pub(crate) fn user_can_read_event(ctx: &ferro_auth::AuthContext, evt: &HookEvent) -> bool {
     let type_id = match evt {
-        HookEvent::ContentCreated { content, .. }
-        | HookEvent::ContentPublished { content, .. } => content.type_id,
+        HookEvent::ContentCreated { content, .. } | HookEvent::ContentPublished { content, .. } => {
+            content.type_id
+        }
         HookEvent::ContentUpdated { after, .. } => after.type_id,
         HookEvent::ContentDeleted { type_id, .. } => *type_id,
         HookEvent::TypeMigrated { .. } => {
@@ -444,8 +432,7 @@ impl Mutation {
 }
 
 fn require_auth<'a>(ctx: &'a Context<'_>) -> async_graphql::Result<&'a AuthUser> {
-    ctx.data_opt::<AuthUser>()
-        .ok_or_else(|| async_graphql::Error::new("unauthenticated"))
+    ctx.data_opt::<AuthUser>().ok_or_else(|| async_graphql::Error::new("unauthenticated"))
 }
 
 fn require_write(auth: &AuthUser, ty: ContentTypeId) -> async_graphql::Result<()> {
@@ -459,10 +446,7 @@ async fn resolve_type(
     type_slug: &str,
 ) -> async_graphql::Result<(Site, ContentType)> {
     let sites = state.repo.sites().list().await?;
-    let site = sites
-        .into_iter()
-        .next()
-        .ok_or_else(|| async_graphql::Error::new("no site"))?;
+    let site = sites.into_iter().next().ok_or_else(|| async_graphql::Error::new("no site"))?;
     let ty = state
         .repo
         .types()
@@ -541,13 +525,9 @@ async fn authenticate_init(
     payload: &serde_json::Value,
 ) -> async_graphql::Result<AuthUser> {
     let token = extract_token(payload).ok_or_else(|| async_graphql::Error::new("missing token"))?;
-    let claims = state
-        .jwt
-        .verify(&token)
-        .map_err(|_| async_graphql::Error::new("invalid token"))?;
-    let user_id = claims
-        .user_id()
-        .map_err(|_| async_graphql::Error::new("invalid token"))?;
+    let claims =
+        state.jwt.verify(&token).map_err(|_| async_graphql::Error::new("invalid token"))?;
+    let user_id = claims.user_id().map_err(|_| async_graphql::Error::new("invalid token"))?;
     let user = state
         .repo
         .users()

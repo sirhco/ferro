@@ -1,10 +1,11 @@
 //! Integration test for the /preview/:type/:slug route.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use axum::body::{to_bytes, Body};
-use axum::http::{header, Request, StatusCode};
+use axum::{
+    body::{to_bytes, Body},
+    http::{header, Request, StatusCode},
+};
 use ferro_api::AppState;
 use ferro_auth::{hash_password, AuthService, JwtManager, MemorySessionStore};
 use ferro_core::{
@@ -44,10 +45,7 @@ async fn preview_renders_blocks_and_title() {
     assert!(html.contains("<h1>About Ferro</h1>"), "h1 block missing: {html}");
     assert!(html.contains("<p>Ferro CMS"), "paragraph block missing: {html}");
     assert!(html.contains("<ul><li>"), "list block missing: {html}");
-    assert!(
-        html.contains("preview-pill-draft"),
-        "draft pill missing: {html}"
-    );
+    assert!(html.contains("preview-pill-draft"), "draft pill missing: {html}");
 }
 
 #[tokio::test]
@@ -55,11 +53,7 @@ async fn preview_requires_auth() {
     let (state, _tmp) = fixture().await;
     let app = ferro_api::router(state);
     let resp = app
-        .oneshot(
-            Request::get("/preview/page/about")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::get("/preview/page/about").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
@@ -220,9 +214,7 @@ async fn seed_user(
         .as_object_mut()
         .unwrap()
         .insert("password_hash".into(), serde_json::json!(user.password_hash));
-    tokio::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap())
-        .await
-        .unwrap();
+    tokio::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).await.unwrap();
 }
 
 async fn login(state: Arc<AppState>, email: &str, password: &str) -> String {
