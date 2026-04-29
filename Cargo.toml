@@ -114,7 +114,7 @@ utoipa = { version = "5", features = ["axum_extras", "uuid", "time"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 # --- storage ---
-surrealdb = { version = "2", default-features = false, features = ["kv-rocksdb", "kv-mem", "protocol-ws", "protocol-http"] }
+surrealdb = { version = "2.6", default-features = false, features = ["kv-rocksdb", "kv-mem", "protocol-ws", "protocol-http"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "time", "json"] }
 
 # --- auth ---

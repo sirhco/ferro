@@ -74,9 +74,13 @@ Manage WASM plugin components dropped into `[plugins].dir`.
 ferro plugin list
 ferro plugin inspect <name>
 ferro plugin reload
+ferro plugin install <crate-path> [--as-name <n>] [--no-build]
+ferro plugin new <name> [--path <dir>] [--capabilities a,b] [--hooks a,b]
 ```
 
-(WASM host scaffolded; today this enumerates files. Live capability granting + reload arrives with the wasmtime component-model loader.)
+- `list` / `inspect` / `reload` — query and refresh the running registry.
+- `install <crate-path>` — runs `cargo build --release --target wasm32-wasip2` against the given plugin crate, then copies `plugin.wasm` + `plugin.toml` into `[plugins].dir`. Pass `--no-build` if the wasm artifact is already built.
+- `new <name>` — scaffold a fresh plugin crate (Cargo.toml + plugin.toml + src/lib.rs + vendored `wit/ferro.wit` + README). Default destination is `./<name>`. Use `--capabilities` to pre-declare the host imports the plugin needs (e.g. `logs,content.read`) and `--hooks` to subscribe to specific events (`content.published`, `content.created`, etc.). The generated crate builds with `cargo build --release --target wasm32-wasip2` and then can be `ferro plugin install`-ed without further setup.
 
 ## `ferro admin *`
 

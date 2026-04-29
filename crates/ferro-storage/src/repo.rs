@@ -78,6 +78,14 @@ pub trait ContentRepo: Send + Sync {
         ty: ContentTypeId,
         slug: &str,
     ) -> StorageResult<Option<Content>>;
+    /// List content matching `q`, paginated.
+    ///
+    /// Backends are expected to satisfy `site_id`, `type_id`, `status`, and
+    /// `locale` filters efficiently — KV-shaped backends should keep secondary
+    /// indexes for these. The `search` filter is documented as scan-acceptable:
+    /// implementations may load the candidate set into memory and filter
+    /// linearly. `slug` is a unique-key lookup (use [`Self::by_slug`] when the
+    /// type is known).
     async fn list(&self, q: ContentQuery) -> StorageResult<Page<Content>>;
     async fn create(&self, site: SiteId, new: NewContent) -> StorageResult<Content>;
     async fn update(&self, id: ContentId, patch: ContentPatch) -> StorageResult<Content>;

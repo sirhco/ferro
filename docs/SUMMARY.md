@@ -19,6 +19,7 @@
 - [Admin UI](admin-ui.md)
 - [REST API](rest-api.md)
 - [GraphQL](graphql.md)
+- [API versioning & deprecation](api-versioning.md)
 
 # Subsystems
 
@@ -26,6 +27,7 @@
 - [Storage backends](storage-backends.md)
 - [Media](media.md)
 - [Plugins & webhooks](plugins-webhooks.md)
+- [Edge runtime](edge.md)
 
 # Authoring
 

@@ -139,3 +139,7 @@ Configuration lives in `ferro.toml`'s `[[webhooks]]` array.
 - Object storage — S3 / GCS via the media backend; local FS for single-host setups.
 - Secrets — JWT secret via `FERRO_JWT_SECRET` env or `[auth] jwt_secret` (the env wins).
 - Dashboards / metrics scraping — Prometheus + Grafana once `/metrics` lands.
+
+## Deployment targets
+
+v1 targets self-hosted binary or container. Edge runtimes (Cloudflare Workers, Fastly Compute@Edge) are deferred to v2 — see [Edge runtime](edge.md) for what's already pre-shaped and what blocks the move.

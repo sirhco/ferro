@@ -31,6 +31,7 @@ mdbook build docs            # static HTML in target/book/
 - [`admin-ui.md`](admin-ui.md) — feature-by-feature tour of the Leptos SPA.
 - [`rest-api.md`](rest-api.md) — REST endpoint reference + curl examples.
 - [`graphql.md`](graphql.md) — GraphQL schema + subscriptions + SSE.
+- [`api-versioning.md`](api-versioning.md) — versioning model + deprecation timeline shared by REST and GraphQL.
 
 ### Subsystems
 
@@ -38,6 +39,7 @@ mdbook build docs            # static HTML in target/book/
 - [`storage-backends.md`](storage-backends.md) — fs-json / fs-markdown / surreal / postgres tradeoffs.
 - [`media.md`](media.md) — local / S3 / GCS, upload pipeline, public URLs.
 - [`plugins-webhooks.md`](plugins-webhooks.md) — events, webhook signing, plugin host.
+- [`edge.md`](edge.md) — edge-runtime constraints (v1 self-host vs. v2 CF Workers / Fastly).
 
 ### Architecture decisions
 

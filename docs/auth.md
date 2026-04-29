@@ -126,3 +126,16 @@ Create custom roles via `ferro admin create-role` or `POST /api/v1/roles` (with 
 - Encourage TOTP for admin users; the UI flow is two clicks.
 - Rotate the JWT secret on suspected compromise (invalidates all access tokens immediately; refresh tokens still work since they're stateful).
 - Turn on Postgres for `SessionStore` if you need cross-restart session survival.
+
+## Secrets and the SSR/CSR boundary
+
+Leptos compiles the same Rust to both server (SSR) and browser (WASM hydrate). Anything reachable from a `#[component]` reachable on the client gets shipped to every visitor. Secrets must never cross that line.
+
+Hard rules — enforced in code review:
+
+- **No `FERRO_JWT_SECRET` access outside `ferro-cli`/`ferro-api`/`ferro-auth`.** These crates compile only for the host target. Don't add `std::env::var("FERRO_JWT_SECRET")` to `ferro-admin`, `ferro-editor`, `ferro-core`, or any crate that compiles to wasm.
+- **No DB credentials, S3 keys, webhook signing secrets, or GCS service-account paths in `ferro-admin` or `ferro-editor`.** The admin UI talks to its own API (`/api/v1/*`) — credentials stay server-side.
+- **Server functions (`#[server]`) are server-only by construction**; their bodies are stripped from the WASM bundle. Use them when admin-only mutations need to read secrets — but verify the function isn't accidentally re-exported through a `pub use` chain to a client-reachable module.
+- **`#[island]` components hydrate in the browser.** Treat their entire transitive module tree as public.
+
+When in doubt: if a module is referenced (directly or via `pub use`) from `ferro-admin/src/lib.rs` or `ferro-editor/src/lib.rs`, assume the browser gets the source.

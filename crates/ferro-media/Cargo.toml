@@ -11,7 +11,7 @@ description = "Ferro media store: local FS, S3, GCS backends + image pipeline."
 default = ["local"]
 local = []
 s3 = ["dep:aws-sdk-s3", "dep:aws-config"]
-gcs = ["dep:google-cloud-storage"]
+gcs = ["dep:google-cloud-storage", "dep:reqwest"]
 images = ["dep:image"]
 
 [dependencies]
@@ -34,3 +34,4 @@ image = { workspace = true, optional = true }
 aws-sdk-s3 = { workspace = true, optional = true }
 aws-config = { workspace = true, optional = true }
 google-cloud-storage = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
