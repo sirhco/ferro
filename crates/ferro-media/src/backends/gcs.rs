@@ -1,14 +1,14 @@
 //! GCS media backend.
 //!
 //! Uses `google-cloud-storage` with default application-credentials auth (GCE
-//! metadata server, `GOOGLE_APPLICATION_CREDENTIALS`, or gcloud CLI).
-//! Objects are stored under `bucket/[prefix/]key`. Uploads buffer to memory
-//! (resumable uploads land with v0.5).
+//! metadata server, `GOOGLE_APPLICATION_CREDENTIALS`, or gcloud CLI). Objects
+//! are stored under `bucket/[prefix/]key`. Uploads stream through
+//! `reqwest::Body::wrap_stream` and downloads use the SDK's streamed-object
+//! API, so peak memory is bounded by the chunk size, not the object size.
 
 use std::time::Duration;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::StreamExt;
 use google_cloud_storage::{
     client::{Client, ClientConfig},
@@ -70,34 +70,46 @@ impl MediaStore for GcsStore {
     async fn put(
         &self,
         key: &str,
-        mut body: ByteStream,
+        body: ByteStream,
         mime: &str,
-        size: u64,
+        _size: u64,
     ) -> MediaResult<MediaRef> {
-        let mut buf: Vec<u8> = Vec::with_capacity(size as usize);
-        while let Some(chunk) = body.next().await {
-            buf.extend_from_slice(&chunk?);
-        }
-        let uploaded = buf.len() as u64;
         let full = self.full_key(key);
         let mut media = Media::new(full);
         media.content_type = mime.to_string().into();
         let upload_type = UploadType::Simple(media);
+
+        // Tee the stream through a counter so the post-upload `MediaRef` carries
+        // the actually-transferred byte count without an extra round-trip.
+        let counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let counter_for_stream = counter.clone();
+        let counted = body.inspect(move |chunk| {
+            if let Ok(bytes) = chunk {
+                counter_for_stream
+                    .fetch_add(bytes.len() as u64, std::sync::atomic::Ordering::Relaxed);
+            }
+        });
+
+        // Skip `upload_streamed_object` because its `S: Send + Sync` bound rejects
+        // our `Pin<Box<dyn Stream + Send>>`. `reqwest::Body::wrap_stream` only
+        // needs `Send + 'static` and ends up at the same code path.
+        let request_body = reqwest::Body::wrap_stream(counted);
         self.client
             .upload_object(
                 &UploadObjectRequest { bucket: self.bucket.clone(), ..Default::default() },
-                buf,
+                request_body,
                 &upload_type,
             )
             .await
             .map_err(backend)?;
+        let uploaded = counter.load(std::sync::atomic::Ordering::Relaxed);
         Ok(MediaRef { key: key.to_string(), size: uploaded, mime: mime.to_string(), url: None })
     }
 
     async fn get(&self, key: &str) -> MediaResult<ByteStream> {
-        let data = self
+        let stream = self
             .client
-            .download_object(
+            .download_streamed_object(
                 &GetObjectRequest {
                     bucket: self.bucket.clone(),
                     object: self.full_key(key),
@@ -114,8 +126,7 @@ impl MediaStore for GcsStore {
                     MediaError::Backend(s)
                 }
             })?;
-        let out = futures::stream::once(async move { Ok::<_, std::io::Error>(Bytes::from(data)) });
-        Ok(Box::pin(out))
+        Ok(Box::pin(stream.map(|r| r.map_err(std::io::Error::other))))
     }
 
     async fn delete(&self, key: &str) -> MediaResult<()> {

@@ -8,7 +8,9 @@ Ferro is an isomorphic CMS built on [Leptos](https://leptos.dev) and [Axum](http
 
 ## Status
 
-**1.0.0** — released 2026-04-26. All four storage backends (fs-json, fs-markdown, surreal, postgres) are full-CRUD; auth surface is hardened end-to-end (Argon2id + JWT iat-invalidation + refresh rotation + RFC 6238 TOTP + RBAC + per-IP rate limit + CSRF); GraphQL + REST + SSE + WebSocket subs are co-equal; admin UI runs on Leptos SSR + CSR; the wasmtime+component-model plugin host loads real WASM components with capability gates. Performance budgets are CI-enforced (per DESIGN.md §10). See [`CHANGELOG.md`](CHANGELOG.md) for the full version arc and [`DESIGN.md §13`](DESIGN.md#13-roadmap) for the post-1.0 roadmap (edge runtime is v2 — see ADR-0005).
+> ⚠️ **Alpha — not production-ready.** Ferro is under active development. APIs, storage formats, plugin ABI, and config schema may change without notice. Do **not** run Ferro against production data, public traffic, or untrusted plugins. Expect bugs, missing hardening, and breaking changes between releases. Use for evaluation, prototyping, and contribution only.
+
+**1.0.0** — released 2026-04-26. All four storage backends (fs-json, fs-markdown, surreal, postgres) are full-CRUD; auth surface is hardened end-to-end (Argon2id + JWT iat-invalidation + refresh rotation + RFC 6238 TOTP + RBAC + per-IP rate limit + CSRF); GraphQL + REST + SSE + WebSocket subs are co-equal; admin UI runs on Leptos SSR + CSR; the wasmtime+component-model plugin host loads real WASM components with capability gates. Performance budgets are CI-enforced (per DESIGN.md §10). The "1.0.0" tag marks feature-completeness against the v1 roadmap — **not** production readiness. See [`CHANGELOG.md`](CHANGELOG.md) for the full version arc and [`DESIGN.md §13`](DESIGN.md#13-roadmap) for the post-1.0 roadmap (edge runtime is v2 — see ADR-0005).
 
 ## Highlights
 
@@ -82,6 +84,7 @@ ferro plugin list|inspect|reload
 - [`docs/storage-backends.md`](docs/storage-backends.md) — fs-json / fs-markdown / surreal / postgres.
 - [`docs/media.md`](docs/media.md) — local / S3 / GCS upload pipeline.
 - [`docs/plugins-webhooks.md`](docs/plugins-webhooks.md) — events, hooks, signing.
+- [`docs/edge.md`](docs/edge.md) — edge-runtime constraints + v1 → v2 prep state.
 - [`docs/deployment.md`](docs/deployment.md) — Dockerfile, systemd, nginx, hardening.
 - [`docs/troubleshooting.md`](docs/troubleshooting.md) — symptoms → fixes.
 

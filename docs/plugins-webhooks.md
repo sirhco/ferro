@@ -131,3 +131,20 @@ When ready, drop a `.wasm` component into `[plugins].dir`, restart, and `ferro p
 - Fan-out: register N hooks for one event without changing the handler.
 - Failure isolation: a webhook to a flaky third-party doesn't 500 the editor's PATCH call.
 - Plugin parity: in-process Rust hooks and out-of-process WASM plugins consume the same events.
+
+## WIT package versioning policy
+
+Plugin authors bind against a stable host ABI. Ferro's WIT package is `ferro:cms@<major>.<minor>.<patch>` (see `crates/ferro-plugin/wit/ferro.wit`). Versioning rules:
+
+- **Patch (`0.1.0` → `0.1.1`)** — pure additions to type variants where the variant is `non-exhaustive` on the host side, doc tweaks, type-level renames that bindgen tolerates. Existing plugin `.wasm` artifacts keep loading.
+- **Minor (`0.1.0` → `0.2.0`)** — adds a host import, adds a guest export with a default no-op, adds a record field with a sensible default. Old plugins still instantiate; they just can't use the new feature.
+- **Major (`0.x.y` → `1.0.0`, `1.x.y` → `2.0.0`)** — removes or renames host imports, changes function signatures, removes hook-event variants, restructures records. Old plugins refuse to instantiate; authors must rebuild against the new WIT.
+
+Practical rules:
+
+- The host crate (`ferro-plugin`) and `crates/ferro-plugin/wit/ferro.wit` always bump together. Never edit one without the other.
+- The plugin loader logs the WIT version a `.wasm` was built against. A mismatch on major version is an operator-visible error.
+- Post-1.0 we commit to **at least 6 months between major bumps**. Minor + patch bumps are unconstrained.
+- Pre-1.0 (today: `ferro:cms@0.1.0`) the policy is best-effort; do not assume binary compatibility across `0.x` releases.
+
+When you change `ferro.wit`, bump the `package` version line in the same commit and add a `CHANGELOG.md` entry under "Plugin ABI".

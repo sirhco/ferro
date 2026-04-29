@@ -12,14 +12,14 @@ pub async fn connect(cfg: &MediaConfig) -> MediaResult<Box<dyn MediaStore>> {
         #[cfg(feature = "local")]
         MediaConfig::Local { .. } => local::connect(cfg).await,
         #[cfg(not(feature = "local"))]
-        MediaConfig::Local { .. } => Err(MediaError::BackendNotEnabled("local")),
+        MediaConfig::Local { .. } => Err(crate::error::MediaError::BackendNotEnabled("local")),
         #[cfg(feature = "s3")]
         MediaConfig::S3 { .. } => s3::connect(cfg).await,
         #[cfg(not(feature = "s3"))]
-        MediaConfig::S3 { .. } => Err(MediaError::BackendNotEnabled("s3")),
+        MediaConfig::S3 { .. } => Err(crate::error::MediaError::BackendNotEnabled("s3")),
         #[cfg(feature = "gcs")]
         MediaConfig::Gcs { .. } => gcs::connect(cfg).await,
         #[cfg(not(feature = "gcs"))]
-        MediaConfig::Gcs { .. } => Err(MediaError::BackendNotEnabled("gcs")),
+        MediaConfig::Gcs { .. } => Err(crate::error::MediaError::BackendNotEnabled("gcs")),
     }
 }

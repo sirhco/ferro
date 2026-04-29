@@ -39,17 +39,48 @@ Files live under `path/<key>`. No public-facing URL by default — clients hit `
 
 ### `s3`
 
+The `s3` backend talks to AWS S3 by default and to any S3-API-compatible service via the optional `endpoint` field — Cloudflare R2, MinIO, DigitalOcean Spaces, Backblaze B2 (S3 API), etc.
+
+#### AWS S3
+
 ```toml
 [media]
 kind = "s3"
 bucket = "ferro-media"
 region = "us-east-1"
-prefix = "prod/"                         # optional, prepended to every key
-endpoint = "https://s3.amazonaws.com"    # optional override (R2: account-id.r2.cloudflarestorage.com; MinIO: your endpoint)
-public_base_url = "https://cdn.example.com/prod/"  # optional; if set, Media.url is precomputed
+prefix = "prod/"          # optional, prepended to every key
 ```
 
-Credentials follow the standard AWS chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` env, `~/.aws/credentials`, IAM role on EC2/ECS/Lambda). `public_base_url` is what gets baked into `Media.url` when present — so you can serve directly from CloudFront/R2 without round-tripping the Ferro server.
+Credentials follow the standard AWS chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` env, `~/.aws/credentials`, IAM role on EC2/ECS/Lambda).
+
+#### Cloudflare R2
+
+```toml
+[media]
+kind = "s3"
+bucket = "ferro-media"
+region = "auto"
+endpoint = "https://<account-id>.r2.cloudflarestorage.com"
+access_key_id = "<r2-access-key-id>"
+secret_access_key = "<r2-secret-access-key>"
+```
+
+R2 uses the same backend — only `endpoint` plus the bucket-scoped credentials differ. `region = "auto"` is correct for R2.
+
+#### MinIO / self-hosted S3
+
+```toml
+[media]
+kind = "s3"
+bucket = "ferro-media"
+region = "us-east-1"
+endpoint = "http://minio.internal:9000"
+force_path_style = true
+access_key_id = "minioadmin"
+secret_access_key = "minioadmin"
+```
+
+`force_path_style = true` is required for MinIO and most non-AWS S3 implementations that don't do virtual-host routing.
 
 ### `gcs`
 
