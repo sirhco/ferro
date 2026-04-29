@@ -2,12 +2,17 @@
 
 All notable changes to Ferro. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 project versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Versions track the milestone arc in [`DESIGN.md §13`](DESIGN.md#13-roadmap).
 
-## [1.0.0] — 2026-04-26
+`0.1.0` is the first **published** crate tag (alpha). The entries below tagged
+`0.1` … `0.6` are **internal milestone markers** from the pre-publication dev
+arc in [`DESIGN.md §13`](DESIGN.md#13-roadmap) — they were never crate-tagged,
+they document the build-up to `0.1.0`. SemVer guarantees begin at `1.0`.
 
-Stabilization release. Public APIs of every `ferro-*` crate are now under
-SemVer; breaking changes ship in the 2.x line.
+## [0.1.0] — 2026-04-26
+
+First tagged alpha preview. Feature-preview milestone for the v1 roadmap —
+**not** a stabilization release. Public APIs of every `ferro-*` crate may
+still change without notice until 1.0; SemVer guarantees begin then.
 
 ### Added
 - **WASM plugin host (real)**: `wasmtime` + component model wiring is live. The
